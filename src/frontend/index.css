@@ -1,0 +1,201 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.75rem;
+
+    /* MarkusBet Dark Theme - Electric Sports Palette */
+    /* Background: Deep charcoal navy */
+    --background: 0.12 0.015 265;
+    --foreground: 0.95 0.01 265;
+
+    /* Cards: slightly lighter charcoal */
+    --card: 0.16 0.02 265;
+    --card-foreground: 0.95 0.01 265;
+
+    --popover: 0.18 0.02 265;
+    --popover-foreground: 0.95 0.01 265;
+
+    /* Primary: Electric lime green */
+    --primary: 0.82 0.22 142;
+    --primary-foreground: 0.1 0.02 142;
+
+    /* Secondary: Muted blue-grey */
+    --secondary: 0.22 0.025 265;
+    --secondary-foreground: 0.85 0.01 265;
+
+    --muted: 0.20 0.02 265;
+    --muted-foreground: 0.60 0.02 265;
+
+    /* Accent: Gold for odds */
+    --accent: 0.80 0.18 85;
+    --accent-foreground: 0.12 0.02 85;
+
+    --destructive: 0.65 0.22 25;
+    --destructive-foreground: 0.98 0 0;
+
+    --border: 0.28 0.025 265;
+    --input: 0.22 0.02 265;
+    --ring: 0.82 0.22 142;
+
+    /* Custom brand tokens */
+    --brand-green: 0.82 0.22 142;
+    --brand-gold: 0.80 0.18 85;
+    --brand-red: 0.65 0.22 25;
+    --brand-yellow: 0.85 0.18 100;
+    --brand-surface: 0.16 0.02 265;
+    --brand-surface-2: 0.20 0.025 265;
+    --brand-border: 0.28 0.025 265;
+
+    /* Chart colors */
+    --chart-1: 0.82 0.22 142;
+    --chart-2: 0.80 0.18 85;
+    --chart-3: 0.65 0.22 25;
+    --chart-4: 0.70 0.18 200;
+    --chart-5: 0.75 0.20 300;
+
+    --sidebar: 0.14 0.018 265;
+    --sidebar-foreground: 0.95 0.01 265;
+    --sidebar-primary: 0.82 0.22 142;
+    --sidebar-primary-foreground: 0.1 0.02 142;
+    --sidebar-accent: 0.20 0.025 265;
+    --sidebar-accent-foreground: 0.85 0.01 265;
+    --sidebar-border: 0.28 0.025 265;
+    --sidebar-ring: 0.82 0.22 142;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Barlow', sans-serif;
+    background-image:
+      radial-gradient(ellipse at 20% 10%, oklch(0.82 0.22 142 / 0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 90%, oklch(0.65 0.22 25 / 0.03) 0%, transparent 50%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Ccircle cx='30' cy='30' r='0.5' fill='white' fill-opacity='0.03'/%3E%3C/svg%3E");
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Barlow Condensed', sans-serif;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Barlow Condensed', sans-serif;
+  }
+
+  .text-gradient-green {
+    background: linear-gradient(135deg, oklch(0.90 0.22 142), oklch(0.75 0.20 160));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-gold {
+    background: linear-gradient(135deg, oklch(0.88 0.18 85), oklch(0.75 0.16 75));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .card-glow-green {
+    box-shadow:
+      0 0 0 1px oklch(0.82 0.22 142 / 0.15),
+      0 4px 24px oklch(0.82 0.22 142 / 0.08),
+      0 1px 3px oklch(0 0 0 / 0.4);
+  }
+
+  .card-glow-green:hover {
+    box-shadow:
+      0 0 0 1px oklch(0.82 0.22 142 / 0.35),
+      0 8px 32px oklch(0.82 0.22 142 / 0.18),
+      0 2px 8px oklch(0 0 0 / 0.5);
+  }
+
+  .prediction-badge-win {
+    background: linear-gradient(135deg, oklch(0.82 0.22 142 / 0.25), oklch(0.82 0.22 142 / 0.15));
+    border: 1px solid oklch(0.82 0.22 142 / 0.4);
+    color: oklch(0.90 0.22 142);
+  }
+
+  .prediction-badge-draw {
+    background: linear-gradient(135deg, oklch(0.80 0.18 85 / 0.25), oklch(0.80 0.18 85 / 0.15));
+    border: 1px solid oklch(0.80 0.18 85 / 0.4);
+    color: oklch(0.88 0.18 85);
+  }
+
+  .prediction-badge-loss {
+    background: linear-gradient(135deg, oklch(0.65 0.22 25 / 0.25), oklch(0.65 0.22 25 / 0.15));
+    border: 1px solid oklch(0.65 0.22 25 / 0.4);
+    color: oklch(0.80 0.22 25);
+  }
+
+  .glass-surface {
+    background: oklch(0.16 0.02 265 / 0.90);
+    backdrop-filter: blur(12px);
+    border: 1px solid oklch(0.30 0.025 265 / 0.6);
+  }
+
+  .confidence-bar-track {
+    background: oklch(0.22 0.025 265);
+    border-radius: 9999px;
+    overflow: hidden;
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: oklch(0.82 0.22 142);
+    animation: pulse-green 2s infinite;
+  }
+
+  @keyframes pulse-green {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 0 0 0 0 oklch(0.82 0.22 142 / 0.5);
+    }
+    50% {
+      opacity: 0.8;
+      box-shadow: 0 0 0 6px oklch(0.82 0.22 142 / 0);
+    }
+  }
+
+  .diagonal-stripe {
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 4px,
+      oklch(1 0 0 / 0.03) 4px,
+      oklch(1 0 0 / 0.03) 8px
+    );
+  }
+
+  .header-gradient {
+    background: linear-gradient(180deg,
+      oklch(0.10 0.02 265) 0%,
+      oklch(0.12 0.015 265) 100%
+    );
+    border-bottom: 1px solid oklch(0.28 0.025 265);
+  }
+
+  .odds-chip {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    background: linear-gradient(135deg, oklch(0.22 0.025 265), oklch(0.18 0.02 265));
+    border: 1px solid oklch(0.80 0.18 85 / 0.4);
+    color: oklch(0.88 0.18 85);
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem;
+    letter-spacing: 0.02em;
+  }
+}
