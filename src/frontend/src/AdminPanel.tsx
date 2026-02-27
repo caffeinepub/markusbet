@@ -47,7 +47,7 @@ import {
   useAdminLogin,
   useAdminLogout,
   useDeletePrediction,
-  useFetchFootballMatches,
+  useFetchMatchesByCompetition,
   useIsAdminAuthenticated,
   usePredictions,
   useUpdatePrediction,
@@ -718,6 +718,28 @@ function AdminLogin({ onLogin }: { onLogin: (token: string) => void }) {
   );
 }
 
+// ---- Competition selector data ----
+const COMPETITIONS = [
+  { code: "PL", name: "Premier League" },
+  { code: "CL", name: "Champions League" },
+  { code: "PD", name: "La Liga" },
+  { code: "BL1", name: "Bundesliga" },
+  { code: "SA", name: "Serie A" },
+  { code: "FL1", name: "Ligue 1" },
+] as const;
+
+type CompetitionCode = (typeof COMPETITIONS)[number]["code"];
+
+function parseApiError(jsonText: string): string {
+  try {
+    const parsed = JSON.parse(jsonText) as { message?: string };
+    if (parsed.message) return parsed.message;
+  } catch {
+    // not JSON, return as-is
+  }
+  return jsonText;
+}
+
 // ---- Import Matches Tab ----
 interface ImportMatchesTabProps {
   onCreatePrediction: (prefill: Partial<PredictionForm>) => void;
@@ -732,8 +754,10 @@ function ImportMatchesTab({
   const [isFetching, setIsFetching] = useState(false);
   const [hasFetched, setHasFetched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCompetition, setSelectedCompetition] =
+    useState<CompetitionCode>("PL");
   const [selectedLeague, setSelectedLeague] = useState<string>("ALL");
-  const fetchMatchesMutation = useFetchFootballMatches();
+  const fetchMatchesMutation = useFetchMatchesByCompetition();
 
   function formatMatchDateLocal(utcDate: string): string {
     try {
@@ -764,21 +788,45 @@ function ImportMatchesTab({
     }
   }
 
+  function getCompetitionName(match: FootballMatch): string {
+    if (match.competition?.name) return match.competition.name;
+    return (
+      COMPETITIONS.find((c) => c.code === selectedCompetition)?.name ??
+      selectedCompetition
+    );
+  }
+
   async function fetchMatches() {
     setSelectedLeague("ALL");
     setIsFetching(true);
     setError(null);
     try {
-      const jsonText = await fetchMatchesMutation.mutateAsync(token);
-      const data = JSON.parse(jsonText) as { matches: FootballMatch[] };
-      setMatches(data.matches ?? []);
+      const jsonText = await fetchMatchesMutation.mutateAsync({
+        token,
+        competitionCode: selectedCompetition,
+      });
+
+      // Check if the response is an error payload
+      let parsed: { matches?: FootballMatch[]; message?: string };
+      try {
+        parsed = JSON.parse(jsonText) as typeof parsed;
+      } catch {
+        throw new Error("Unexpected response from server.");
+      }
+
+      if (parsed.message && !parsed.matches) {
+        // API returned an error object
+        throw new Error(parsed.message);
+      }
+
+      setMatches(parsed.matches ?? []);
       setHasFetched(true);
     } catch (err) {
-      setError(
+      const rawMsg =
         err instanceof Error
           ? err.message
-          : "Failed to fetch matches. Please try again.",
-      );
+          : "Failed to fetch matches. Please try again.";
+      setError(parseApiError(rawMsg));
       setHasFetched(true);
     } finally {
       setIsFetching(false);
@@ -786,12 +834,12 @@ function ImportMatchesTab({
   }
 
   const uniqueLeagues = Array.from(
-    new Set(matches.map((m) => m.competition.name)),
+    new Set(matches.map((m) => getCompetitionName(m))),
   );
   const displayedMatches =
     selectedLeague === "ALL"
       ? matches
-      : matches.filter((m) => m.competition.name === selectedLeague);
+      : matches.filter((m) => getCompetitionName(m) === selectedLeague);
 
   const btnBase = {
     fontFamily: "'Barlow Condensed', sans-serif",
@@ -802,31 +850,105 @@ function ImportMatchesTab({
 
   return (
     <div className="space-y-5">
-      {/* Fetch button + status row */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h3
-            style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontWeight: 800,
-              fontSize: "1.2rem",
-              letterSpacing: "0.04em",
-              color: "oklch(0.95 0.01 265)",
-              lineHeight: 1,
-            }}
-          >
-            IMPORT FROM FOOTBALL-DATA.ORG
-          </h3>
-          <p
-            style={{
-              fontSize: "0.70rem",
-              color: "oklch(0.45 0.02 265)",
-              marginTop: 3,
-            }}
-          >
-            Fetch upcoming scheduled matches and quickly create predictions.
-          </p>
-        </div>
+      {/* Header */}
+      <div>
+        <h3
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 800,
+            fontSize: "1.2rem",
+            letterSpacing: "0.04em",
+            color: "oklch(0.95 0.01 265)",
+            lineHeight: 1,
+          }}
+        >
+          IMPORT FROM FOOTBALL-DATA.ORG
+        </h3>
+        <p
+          style={{
+            fontSize: "0.70rem",
+            color: "oklch(0.45 0.02 265)",
+            marginTop: 3,
+          }}
+        >
+          Select a competition, fetch upcoming matches, and quickly create
+          predictions.
+        </p>
+      </div>
+
+      {/* Competition selector */}
+      <div>
+        <p
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 700,
+            fontSize: "0.68rem",
+            letterSpacing: "0.10em",
+            color: "oklch(0.50 0.02 265)",
+            textTransform: "uppercase",
+            marginBottom: "0.5rem",
+          }}
+        >
+          Select Competition
+        </p>
+        <fieldset
+          className="flex flex-wrap gap-2"
+          style={{ border: "none", padding: 0, margin: 0 }}
+        >
+          <legend className="sr-only">Select competition to fetch</legend>
+          {COMPETITIONS.map((comp) => {
+            const isActive = selectedCompetition === comp.code;
+            return (
+              <button
+                key={comp.code}
+                type="button"
+                onClick={() => setSelectedCompetition(comp.code)}
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 700,
+                  fontSize: "0.72rem",
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  padding: "0.35rem 0.85rem",
+                  borderRadius: "0.45rem",
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                  background: isActive
+                    ? "oklch(0.45 0.18 230 / 0.22)"
+                    : "oklch(0.18 0.022 265)",
+                  border: isActive
+                    ? "1px solid oklch(0.45 0.18 230 / 0.6)"
+                    : "1px solid oklch(0.28 0.025 265)",
+                  color: isActive
+                    ? "oklch(0.78 0.16 230)"
+                    : "oklch(0.58 0.02 265)",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "oklch(0.22 0.025 265)";
+                    (e.currentTarget as HTMLButtonElement).style.color =
+                      "oklch(0.75 0.02 265)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "oklch(0.18 0.022 265)";
+                    (e.currentTarget as HTMLButtonElement).style.color =
+                      "oklch(0.58 0.02 265)";
+                  }
+                }}
+              >
+                {comp.name}
+              </button>
+            );
+          })}
+        </fieldset>
+      </div>
+
+      {/* Fetch button */}
+      <div>
         <Button
           onClick={fetchMatches}
           disabled={isFetching}
@@ -841,7 +963,9 @@ function ImportMatchesTab({
           ) : (
             <RefreshCw size={15} className="mr-1.5" />
           )}
-          {isFetching ? "FETCHING..." : "FETCH UPCOMING MATCHES"}
+          {isFetching
+            ? "FETCHING..."
+            : `FETCH ${COMPETITIONS.find((c) => c.code === selectedCompetition)?.name.toUpperCase() ?? "MATCHES"}`}
         </Button>
       </div>
 
@@ -885,6 +1009,16 @@ function ImportMatchesTab({
               </p>
               <p style={{ fontSize: "0.75rem", color: "oklch(0.65 0.12 25)" }}>
                 {error}
+              </p>
+              <p
+                style={{
+                  fontSize: "0.70rem",
+                  color: "oklch(0.48 0.08 25)",
+                  marginTop: "0.35rem",
+                }}
+              >
+                Tip: Make sure your API key is valid and you have not exceeded
+                the free tier rate limit (10 req/min).
               </p>
             </div>
           </motion.div>
@@ -941,8 +1075,8 @@ function ImportMatchesTab({
             </span>
           </div>
 
-          {/* League filter chips */}
-          {matches.length > 0 && (
+          {/* League filter chips (only shown when multiple leagues returned) */}
+          {matches.length > 0 && uniqueLeagues.length > 1 && (
             <fieldset
               className="flex flex-wrap gap-2 mb-4"
               style={{ border: "none", padding: 0, margin: 0 }}
@@ -996,7 +1130,7 @@ function ImportMatchesTab({
                   >
                     {league === "ALL"
                       ? `ALL (${matches.length})`
-                      : `${league} (${matches.filter((m) => m.competition.name === league).length})`}
+                      : `${league} (${matches.filter((m) => getCompetitionName(m) === league).length})`}
                   </button>
                 );
               })}
@@ -1032,7 +1166,7 @@ function ImportMatchesTab({
                   marginTop: 6,
                 }}
               >
-                The API returned no scheduled matches at this time.
+                The API returned no scheduled matches for this competition.
               </p>
             </div>
           ) : displayedMatches.length === 0 ? (
@@ -1136,7 +1270,7 @@ function ImportMatchesTab({
                           }}
                         >
                           <Trophy size={10} />
-                          {match.competition.name}
+                          {getCompetitionName(match)}
                         </span>
                         <span
                           style={{
@@ -1162,7 +1296,7 @@ function ImportMatchesTab({
                           homeTeam: match.homeTeam.name,
                           awayTeam: match.awayTeam.name,
                           matchDate: formatMatchDateLocal(match.utcDate),
-                          league: match.competition.name,
+                          league: getCompetitionName(match),
                           prediction: "",
                           odds: "",
                           confidence: "75",
@@ -1232,7 +1366,7 @@ function ImportMatchesTab({
               color: "oklch(0.48 0.02 265)",
             }}
           >
-            CLICK "FETCH UPCOMING MATCHES" TO START
+            SELECT A COMPETITION AND CLICK FETCH
           </p>
           <p
             style={{

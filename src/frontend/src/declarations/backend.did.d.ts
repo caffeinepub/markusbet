@@ -44,7 +44,18 @@ export interface _SERVICE {
   'adminLogin' : ActorMethod<[string], [] | [string]>,
   'adminLogout' : ActorMethod<[string], boolean>,
   'deletePredictionAsAdmin' : ActorMethod<[string, bigint], boolean>,
+  /**
+   * / Fetches only Premier League matches.
+   */
   'fetchFootballMatches' : ActorMethod<[string], string>,
+  /**
+   * / Fetch Matches by Competition Code
+   * /
+   * / competitionCode examples:
+   * / "PL" (Premier League), "CL" (Champions League), "PD" (La Liga),
+   * / "BL1" (Bundesliga), "SA" (Serie A), "FL1" (Ligue 1)
+   */
+  'fetchMatchesByCompetition' : ActorMethod<[string, string], string>,
   'getPredictions' : ActorMethod<[], Array<Prediction>>,
   'isAdminAuthenticated' : ActorMethod<[string], boolean>,
   'seedInitialData' : ActorMethod<[], undefined>,

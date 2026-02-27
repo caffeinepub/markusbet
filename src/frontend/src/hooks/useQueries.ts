@@ -9,12 +9,7 @@ export function usePredictions() {
     queryKey: ["predictions"],
     queryFn: async () => {
       if (!actor) return [];
-      const predictions = await actor.getPredictions();
-      if (predictions.length === 0) {
-        await actor.seedInitialData();
-        return actor.getPredictions();
-      }
-      return predictions;
+      return actor.getPredictions();
     },
     enabled: !!actor && !isFetching,
     staleTime: 1000 * 60 * 5,
@@ -143,6 +138,22 @@ export function useFetchFootballMatches() {
     mutationFn: async (token: string): Promise<string> => {
       if (!actor) throw new Error("No actor");
       return actor.fetchFootballMatches(token);
+    },
+  });
+}
+
+export function useFetchMatchesByCompetition() {
+  const { actor } = useActor();
+  return useMutation({
+    mutationFn: async ({
+      token,
+      competitionCode,
+    }: {
+      token: string;
+      competitionCode: string;
+    }): Promise<string> => {
+      if (!actor) throw new Error("No actor");
+      return actor.fetchMatchesByCompetition(token, competitionCode);
     },
   });
 }

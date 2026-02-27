@@ -7,9 +7,7 @@ import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Outcall "http-outcalls/outcall";
-import Migration "migration";
 
-(with migration = Migration.run)
 actor {
   type Prediction = {
     id : Nat;
@@ -183,11 +181,27 @@ actor {
     Outcall.transform(input);
   };
 
+  /// Fetches only Premier League matches.
   public shared ({ caller }) func fetchFootballMatches(token : Text) : async Text {
     if (not adminSessions.containsKey(token)) {
       Runtime.trap("Admin access required");
     };
-    let url = "https://api.football-data.org/v4/matches?status=SCHEDULED&limit=20";
+    let url = "https://api.football-data.org/v4/competitions/PL/matches?status=SCHEDULED";
+    let headers : [Outcall.Header] = [{ name = "X-Auth-Token"; value = "4324f56c98a948e0a550f0e3fa00acfd" }];
+    await Outcall.httpGetRequest(url, headers, transform);
+  };
+
+  /// Fetch Matches by Competition Code
+  ///
+  /// competitionCode examples:
+  /// "PL" (Premier League), "CL" (Champions League), "PD" (La Liga),
+  /// "BL1" (Bundesliga), "SA" (Serie A), "FL1" (Ligue 1)
+  public shared ({ caller }) func fetchMatchesByCompetition(token : Text, competitionCode : Text) : async Text {
+    if (not adminSessions.containsKey(token)) {
+      Runtime.trap("Admin access required");
+    };
+
+    let url = "https://api.football-data.org/v4/competitions/" # competitionCode # "/matches?status=SCHEDULED";
     let headers : [Outcall.Header] = [{ name = "X-Auth-Token"; value = "4324f56c98a948e0a550f0e3fa00acfd" }];
     await Outcall.httpGetRequest(url, headers, transform);
   };
