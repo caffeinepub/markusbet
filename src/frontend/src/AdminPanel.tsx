@@ -721,11 +721,12 @@ function AdminLogin({ onLogin }: { onLogin: (token: string) => void }) {
 // ---- Competition selector data ----
 const COMPETITIONS = [
   { code: "PL", name: "Premier League" },
-  { code: "CL", name: "Champions League" },
   { code: "PD", name: "La Liga" },
   { code: "BL1", name: "Bundesliga" },
   { code: "SA", name: "Serie A" },
   { code: "FL1", name: "Ligue 1" },
+  { code: "PPL", name: "Primeira Liga" },
+  { code: "DED", name: "Eredivisie" },
 ] as const;
 
 type CompetitionCode = (typeof COMPETITIONS)[number]["code"];
@@ -1018,7 +1019,8 @@ function ImportMatchesTab({
                 }}
               >
                 Tip: Make sure your API key is valid and you have not exceeded
-                the free tier rate limit (10 req/min).
+                the free tier rate limit (10 req/min). Note: Champions League
+                and other premium competitions require a paid plan.
               </p>
             </div>
           </motion.div>

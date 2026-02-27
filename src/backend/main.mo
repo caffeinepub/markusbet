@@ -1,5 +1,4 @@
 import Float "mo:core/Float";
-import VarArray "mo:core/VarArray";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Order "mo:core/Order";
@@ -8,8 +7,6 @@ import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Iter "mo:core/Iter";
 import Outcall "http-outcalls/outcall";
-
-
 
 actor {
   type Prediction = {
@@ -30,8 +27,8 @@ actor {
     };
   };
 
-  stable var predictions : Map.Map<Nat, Prediction> = Map.empty<Nat, Prediction>();
-  stable var nextId = 1 : Nat;
+  let predictions = Map.empty<Nat, Prediction>();
+  var nextId = 1 : Nat;
 
   let adminSessions = Map.empty<Text, Int>();
   let adminPassword = "MarkusBet2024!";
@@ -192,7 +189,7 @@ actor {
     if (not adminSessions.containsKey(token)) {
       Runtime.trap("Admin access required");
     };
-    let url = "https://api.football-data.org/v4/competitions/PL/matches?status=SCHEDULED";
+    let url = "https://api.football-data.org/v4/competitions/PL/matches?status=SCHEDULED&dateFrom=2025-01-01&dateTo=2026-12-31";
     let headers : [Outcall.Header] = [{ name = "X-Auth-Token"; value = "4324f56c98a948e0a550f0e3fa00acfd" }];
     await Outcall.httpGetRequest(url, headers, transform);
   };
@@ -201,7 +198,7 @@ actor {
     if (not adminSessions.containsKey(token)) {
       Runtime.trap("Admin access required");
     };
-    let url = "https://api.football-data.org/v4/competitions/" # competitionCode # "/matches?status=SCHEDULED";
+    let url = "https://api.football-data.org/v4/competitions/" # competitionCode # "/matches?status=SCHEDULED&dateFrom=2025-01-01&dateTo=2026-12-31";
     let headers : [Outcall.Header] = [{ name = "X-Auth-Token"; value = "4324f56c98a948e0a550f0e3fa00acfd" }];
     await Outcall.httpGetRequest(url, headers, transform);
   };
