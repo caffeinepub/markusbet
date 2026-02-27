@@ -89,6 +89,15 @@ export class ExternalBlob {
         return this;
     }
 }
+export interface TransformationInput {
+    context: Uint8Array;
+    response: http_request_result;
+}
+export interface TransformationOutput {
+    status: bigint;
+    body: Uint8Array;
+    headers: Array<http_header>;
+}
 export interface Prediction {
     id: bigint;
     prediction: string;
@@ -100,14 +109,25 @@ export interface Prediction {
     analysis: string;
     matchDate: string;
 }
+export interface http_header {
+    value: string;
+    name: string;
+}
+export interface http_request_result {
+    status: bigint;
+    body: Uint8Array;
+    headers: Array<http_header>;
+}
 export interface backendInterface {
     addPredictionAsAdmin(token: string, homeTeam: string, awayTeam: string, matchDate: string, league: string, predictionType: string, odds: number, confidence: bigint, analysis: string): Promise<bigint | null>;
     adminLogin(password: string): Promise<string | null>;
     adminLogout(token: string): Promise<boolean>;
     deletePredictionAsAdmin(token: string, id: bigint): Promise<boolean>;
+    fetchFootballMatches(token: string): Promise<string>;
     getPredictions(): Promise<Array<Prediction>>;
     isAdminAuthenticated(token: string): Promise<boolean>;
     seedInitialData(): Promise<void>;
+    transform(input: TransformationInput): Promise<TransformationOutput>;
     updatePredictionAsAdmin(token: string, id: bigint, homeTeam: string, awayTeam: string, matchDate: string, league: string, predictionType: string, odds: number, confidence: bigint, analysis: string): Promise<boolean>;
 }
 export class Backend implements backendInterface {
@@ -168,6 +188,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async fetchFootballMatches(arg0: string): Promise<string> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.fetchFootballMatches(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.fetchFootballMatches(arg0);
+            return result;
+        }
+    }
     async getPredictions(): Promise<Array<Prediction>> {
         if (this.processError) {
             try {
@@ -207,6 +241,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.seedInitialData();
+            return result;
+        }
+    }
+    async transform(arg0: TransformationInput): Promise<TransformationOutput> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.transform(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.transform(arg0);
             return result;
         }
     }

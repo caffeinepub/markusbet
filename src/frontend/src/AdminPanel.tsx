@@ -47,13 +47,12 @@ import {
   useAdminLogin,
   useAdminLogout,
   useDeletePrediction,
+  useFetchFootballMatches,
   useIsAdminAuthenticated,
   usePredictions,
   useUpdatePrediction,
 } from "./hooks/useQueries";
 import type { Prediction } from "./hooks/useQueries";
-
-const FOOTBALL_API_KEY = "4324f56c98a948e0a550f0e3fa00acfd";
 
 // ---- Football API types ----
 interface FootballMatch {
@@ -722,14 +721,19 @@ function AdminLogin({ onLogin }: { onLogin: (token: string) => void }) {
 // ---- Import Matches Tab ----
 interface ImportMatchesTabProps {
   onCreatePrediction: (prefill: Partial<PredictionForm>) => void;
+  token: string;
 }
 
-function ImportMatchesTab({ onCreatePrediction }: ImportMatchesTabProps) {
+function ImportMatchesTab({
+  onCreatePrediction,
+  token,
+}: ImportMatchesTabProps) {
   const [matches, setMatches] = useState<FootballMatch[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [hasFetched, setHasFetched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedLeague, setSelectedLeague] = useState<string>("ALL");
+  const fetchMatchesMutation = useFetchFootballMatches();
 
   function formatMatchDateLocal(utcDate: string): string {
     try {
@@ -765,18 +769,8 @@ function ImportMatchesTab({ onCreatePrediction }: ImportMatchesTabProps) {
     setIsFetching(true);
     setError(null);
     try {
-      const response = await fetch(
-        "https://api.football-data.org/v4/matches?status=SCHEDULED&limit=20",
-        {
-          headers: {
-            "X-Auth-Token": FOOTBALL_API_KEY,
-          },
-        },
-      );
-      if (!response.ok) {
-        throw new Error(`API error ${response.status}: ${response.statusText}`);
-      }
-      const data = (await response.json()) as { matches: FootballMatch[] };
+      const jsonText = await fetchMatchesMutation.mutateAsync(token);
+      const data = JSON.parse(jsonText) as { matches: FootballMatch[] };
       setMatches(data.matches ?? []);
       setHasFetched(true);
     } catch (err) {
@@ -1899,7 +1893,10 @@ function AdminDashboard({
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25 }}
             >
-              <ImportMatchesTab onCreatePrediction={openFromImport} />
+              <ImportMatchesTab
+                onCreatePrediction={openFromImport}
+                token={token}
+              />
             </motion.div>
           )}
         </AnimatePresence>

@@ -137,4 +137,14 @@ export function useDeletePrediction() {
   });
 }
 
+export function useFetchFootballMatches() {
+  const { actor } = useActor();
+  return useMutation({
+    mutationFn: async (token: string): Promise<string> => {
+      if (!actor) throw new Error("No actor");
+      return actor.fetchFootballMatches(token);
+    },
+  });
+}
+
 export type { Prediction };

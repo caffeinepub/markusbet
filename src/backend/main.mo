@@ -1,13 +1,15 @@
 import Float "mo:core/Float";
 import Iter "mo:core/Iter";
-import List "mo:core/List";
-import Nat "mo:core/Nat";
 import Map "mo:core/Map";
+import Nat "mo:core/Nat";
 import Order "mo:core/Order";
+import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
-import Runtime "mo:core/Runtime";
+import Outcall "http-outcalls/outcall";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
   type Prediction = {
     id : Nat;
@@ -27,14 +29,15 @@ actor {
     };
   };
 
-  let predictions = Map.empty<Nat, Prediction>();
+  var predictions : Map.Map<Nat, Prediction> = Map.empty<Nat, Prediction>();
   var nextId = 1 : Nat;
 
   let adminSessions = Map.empty<Text, Int>();
   let adminPassword = "MarkusBet2024!";
 
   public shared ({ caller }) func adminLogin(password : Text) : async ?Text {
-    if (password != adminPassword) { Runtime.trap("Invalid admin password") };
+    if (password != adminPassword) { return null };
+
     let sessionId = Time.now().toText();
     adminSessions.add(sessionId, 1);
     ?sessionId;
@@ -174,5 +177,18 @@ actor {
       predictions.add(prediction.id, prediction);
     };
     nextId := 6;
+  };
+
+  public query ({ caller }) func transform(input : Outcall.TransformationInput) : async Outcall.TransformationOutput {
+    Outcall.transform(input);
+  };
+
+  public shared ({ caller }) func fetchFootballMatches(token : Text) : async Text {
+    if (not adminSessions.containsKey(token)) {
+      Runtime.trap("Admin access required");
+    };
+    let url = "https://api.football-data.org/v4/matches?status=SCHEDULED&limit=20";
+    let headers : [Outcall.Header] = [{ name = "X-Auth-Token"; value = "4324f56c98a948e0a550f0e3fa00acfd" }];
+    await Outcall.httpGetRequest(url, headers, transform);
   };
 };

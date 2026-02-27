@@ -19,6 +19,24 @@ export const Prediction = IDL.Record({
   'analysis' : IDL.Text,
   'matchDate' : IDL.Text,
 });
+export const http_header = IDL.Record({
+  'value' : IDL.Text,
+  'name' : IDL.Text,
+});
+export const http_request_result = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(http_header),
+});
+export const TransformationInput = IDL.Record({
+  'context' : IDL.Vec(IDL.Nat8),
+  'response' : http_request_result,
+});
+export const TransformationOutput = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(http_header),
+});
 
 export const idlService = IDL.Service({
   'addPredictionAsAdmin' : IDL.Func(
@@ -39,9 +57,15 @@ export const idlService = IDL.Service({
   'adminLogin' : IDL.Func([IDL.Text], [IDL.Opt(IDL.Text)], []),
   'adminLogout' : IDL.Func([IDL.Text], [IDL.Bool], []),
   'deletePredictionAsAdmin' : IDL.Func([IDL.Text, IDL.Nat], [IDL.Bool], []),
+  'fetchFootballMatches' : IDL.Func([IDL.Text], [IDL.Text], []),
   'getPredictions' : IDL.Func([], [IDL.Vec(Prediction)], ['query']),
   'isAdminAuthenticated' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
   'seedInitialData' : IDL.Func([], [], []),
+  'transform' : IDL.Func(
+      [TransformationInput],
+      [TransformationOutput],
+      ['query'],
+    ),
   'updatePredictionAsAdmin' : IDL.Func(
       [
         IDL.Text,
@@ -74,6 +98,21 @@ export const idlFactory = ({ IDL }) => {
     'analysis' : IDL.Text,
     'matchDate' : IDL.Text,
   });
+  const http_header = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+  const http_request_result = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(http_header),
+  });
+  const TransformationInput = IDL.Record({
+    'context' : IDL.Vec(IDL.Nat8),
+    'response' : http_request_result,
+  });
+  const TransformationOutput = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(http_header),
+  });
   
   return IDL.Service({
     'addPredictionAsAdmin' : IDL.Func(
@@ -94,9 +133,15 @@ export const idlFactory = ({ IDL }) => {
     'adminLogin' : IDL.Func([IDL.Text], [IDL.Opt(IDL.Text)], []),
     'adminLogout' : IDL.Func([IDL.Text], [IDL.Bool], []),
     'deletePredictionAsAdmin' : IDL.Func([IDL.Text, IDL.Nat], [IDL.Bool], []),
+    'fetchFootballMatches' : IDL.Func([IDL.Text], [IDL.Text], []),
     'getPredictions' : IDL.Func([], [IDL.Vec(Prediction)], ['query']),
     'isAdminAuthenticated' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
     'seedInitialData' : IDL.Func([], [], []),
+    'transform' : IDL.Func(
+        [TransformationInput],
+        [TransformationOutput],
+        ['query'],
+      ),
     'updatePredictionAsAdmin' : IDL.Func(
         [
           IDL.Text,

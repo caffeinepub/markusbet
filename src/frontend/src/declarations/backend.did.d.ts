@@ -21,6 +21,21 @@ export interface Prediction {
   'analysis' : string,
   'matchDate' : string,
 }
+export interface TransformationInput {
+  'context' : Uint8Array,
+  'response' : http_request_result,
+}
+export interface TransformationOutput {
+  'status' : bigint,
+  'body' : Uint8Array,
+  'headers' : Array<http_header>,
+}
+export interface http_header { 'value' : string, 'name' : string }
+export interface http_request_result {
+  'status' : bigint,
+  'body' : Uint8Array,
+  'headers' : Array<http_header>,
+}
 export interface _SERVICE {
   'addPredictionAsAdmin' : ActorMethod<
     [string, string, string, string, string, string, number, bigint, string],
@@ -29,9 +44,11 @@ export interface _SERVICE {
   'adminLogin' : ActorMethod<[string], [] | [string]>,
   'adminLogout' : ActorMethod<[string], boolean>,
   'deletePredictionAsAdmin' : ActorMethod<[string, bigint], boolean>,
+  'fetchFootballMatches' : ActorMethod<[string], string>,
   'getPredictions' : ActorMethod<[], Array<Prediction>>,
   'isAdminAuthenticated' : ActorMethod<[string], boolean>,
   'seedInitialData' : ActorMethod<[], undefined>,
+  'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
   'updatePredictionAsAdmin' : ActorMethod<
     [
       string,
