@@ -729,6 +729,7 @@ function ImportMatchesTab({ onCreatePrediction }: ImportMatchesTabProps) {
   const [isFetching, setIsFetching] = useState(false);
   const [hasFetched, setHasFetched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedLeague, setSelectedLeague] = useState<string>("ALL");
 
   function formatMatchDateLocal(utcDate: string): string {
     try {
@@ -760,6 +761,7 @@ function ImportMatchesTab({ onCreatePrediction }: ImportMatchesTabProps) {
   }
 
   async function fetchMatches() {
+    setSelectedLeague("ALL");
     setIsFetching(true);
     setError(null);
     try {
@@ -788,6 +790,14 @@ function ImportMatchesTab({ onCreatePrediction }: ImportMatchesTabProps) {
       setIsFetching(false);
     }
   }
+
+  const uniqueLeagues = Array.from(
+    new Set(matches.map((m) => m.competition.name)),
+  );
+  const displayedMatches =
+    selectedLeague === "ALL"
+      ? matches
+      : matches.filter((m) => m.competition.name === selectedLeague);
 
   const btnBase = {
     fontFamily: "'Barlow Condensed', sans-serif",
@@ -937,6 +947,68 @@ function ImportMatchesTab({ onCreatePrediction }: ImportMatchesTabProps) {
             </span>
           </div>
 
+          {/* League filter chips */}
+          {matches.length > 0 && (
+            <fieldset
+              className="flex flex-wrap gap-2 mb-4"
+              style={{ border: "none", padding: 0, margin: 0 }}
+            >
+              <legend className="sr-only">Filter by league</legend>
+              {["ALL", ...uniqueLeagues].map((league) => {
+                const isActive = selectedLeague === league;
+                return (
+                  <button
+                    key={league}
+                    type="button"
+                    onClick={() => setSelectedLeague(league)}
+                    style={{
+                      fontFamily: "'Barlow Condensed', sans-serif",
+                      fontWeight: 700,
+                      fontSize: "0.70rem",
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      padding: "0.28rem 0.75rem",
+                      borderRadius: "0.4rem",
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                      background: isActive
+                        ? "oklch(0.82 0.22 142 / 0.18)"
+                        : "oklch(0.20 0.025 265)",
+                      border: isActive
+                        ? "1px solid oklch(0.82 0.22 142 / 0.5)"
+                        : "1px solid oklch(0.28 0.025 265)",
+                      color: isActive
+                        ? "oklch(0.82 0.22 142)"
+                        : "oklch(0.62 0.02 265)",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        (
+                          e.currentTarget as HTMLButtonElement
+                        ).style.background = "oklch(0.24 0.025 265)";
+                        (e.currentTarget as HTMLButtonElement).style.color =
+                          "oklch(0.78 0.02 265)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        (
+                          e.currentTarget as HTMLButtonElement
+                        ).style.background = "oklch(0.20 0.025 265)";
+                        (e.currentTarget as HTMLButtonElement).style.color =
+                          "oklch(0.62 0.02 265)";
+                      }
+                    }}
+                  >
+                    {league === "ALL"
+                      ? `ALL (${matches.length})`
+                      : `${league} (${matches.filter((m) => m.competition.name === league).length})`}
+                  </button>
+                );
+              })}
+            </fieldset>
+          )}
+
           {matches.length === 0 ? (
             <div
               style={{
@@ -969,10 +1041,41 @@ function ImportMatchesTab({ onCreatePrediction }: ImportMatchesTabProps) {
                 The API returned no scheduled matches at this time.
               </p>
             </div>
+          ) : displayedMatches.length === 0 ? (
+            <div
+              style={{
+                background: "oklch(0.16 0.02 265)",
+                border: "1px solid oklch(0.28 0.025 265)",
+                borderRadius: "0.75rem",
+                padding: "2.5rem",
+                textAlign: "center",
+              }}
+            >
+              <p
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 700,
+                  fontSize: "0.90rem",
+                  letterSpacing: "0.06em",
+                  color: "oklch(0.50 0.02 265)",
+                }}
+              >
+                NO MATCHES FOR THIS LEAGUE
+              </p>
+              <p
+                style={{
+                  fontSize: "0.72rem",
+                  color: "oklch(0.38 0.02 265)",
+                  marginTop: 6,
+                }}
+              >
+                Try selecting a different filter above.
+              </p>
+            </div>
           ) : (
             <div className="space-y-2">
               <AnimatePresence>
-                {matches.map((match, i) => (
+                {displayedMatches.map((match, i) => (
                   <motion.div
                     key={match.id}
                     initial={{ opacity: 0, x: -8 }}
