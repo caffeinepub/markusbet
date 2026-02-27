@@ -1,13 +1,16 @@
 import Float "mo:core/Float";
-import Iter "mo:core/Iter";
+import VarArray "mo:core/VarArray";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Order "mo:core/Order";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
+import Iter "mo:core/Iter";
 import Outcall "http-outcalls/outcall";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
   type Prediction = {
     id : Nat;
@@ -27,8 +30,8 @@ actor {
     };
   };
 
-  var predictions : Map.Map<Nat, Prediction> = Map.empty<Nat, Prediction>();
-  var nextId = 1 : Nat;
+  stable var predictions : Map.Map<Nat, Prediction> = Map.empty<Nat, Prediction>();
+  stable var nextId = 1 : Nat;
 
   let adminSessions = Map.empty<Text, Int>();
   let adminPassword = "MarkusBet2024!";
@@ -43,7 +46,7 @@ actor {
 
   public shared ({ caller }) func adminLogout(token : Text) : async Bool {
     switch (adminSessions.get(token)) {
-      case (null) { false };
+      case (null) { Runtime.trap("Invalid session token") };
       case (?_) {
         adminSessions.remove(token);
         true;
@@ -60,7 +63,9 @@ actor {
   };
 
   public shared ({ caller }) func addPredictionAsAdmin(token : Text, homeTeam : Text, awayTeam : Text, matchDate : Text, league : Text, predictionType : Text, odds : Float, confidence : Nat, analysis : Text) : async ?Nat {
-    if (not adminSessions.containsKey(token)) { Runtime.trap("Admin access required") };
+    if (not adminSessions.containsKey(token)) {
+      Runtime.trap("Admin access required");
+    };
     let newPrediction : Prediction = {
       id = nextId;
       homeTeam;
@@ -78,9 +83,11 @@ actor {
   };
 
   public shared ({ caller }) func updatePredictionAsAdmin(token : Text, id : Nat, homeTeam : Text, awayTeam : Text, matchDate : Text, league : Text, predictionType : Text, odds : Float, confidence : Nat, analysis : Text) : async Bool {
-    if (not adminSessions.containsKey(token)) { Runtime.trap("Admin access required") };
+    if (not adminSessions.containsKey(token)) {
+      Runtime.trap("Admin access required");
+    };
     switch (predictions.get(id)) {
-      case (null) { false };
+      case (null) { Runtime.trap("Prediction not found") };
       case (?_) {
         let updatedPrediction : Prediction = {
           id;
@@ -100,14 +107,14 @@ actor {
   };
 
   public shared ({ caller }) func deletePredictionAsAdmin(token : Text, id : Nat) : async Bool {
-    if (not adminSessions.containsKey(token)) { Runtime.trap("Admin access required") };
-    switch (predictions.containsKey(id)) {
-      case (false) { false };
-      case (true) {
-        predictions.remove(id);
-        true;
-      };
+    if (not adminSessions.containsKey(token)) {
+      Runtime.trap("Admin access required");
     };
+    if (not predictions.containsKey(id)) {
+      Runtime.trap("Prediction not found");
+    };
+    predictions.remove(id);
+    true;
   };
 
   public shared ({ caller }) func seedInitialData() : async () {
@@ -181,7 +188,6 @@ actor {
     Outcall.transform(input);
   };
 
-  /// Fetches only Premier League matches.
   public shared ({ caller }) func fetchFootballMatches(token : Text) : async Text {
     if (not adminSessions.containsKey(token)) {
       Runtime.trap("Admin access required");
@@ -191,16 +197,10 @@ actor {
     await Outcall.httpGetRequest(url, headers, transform);
   };
 
-  /// Fetch Matches by Competition Code
-  ///
-  /// competitionCode examples:
-  /// "PL" (Premier League), "CL" (Champions League), "PD" (La Liga),
-  /// "BL1" (Bundesliga), "SA" (Serie A), "FL1" (Ligue 1)
   public shared ({ caller }) func fetchMatchesByCompetition(token : Text, competitionCode : Text) : async Text {
     if (not adminSessions.containsKey(token)) {
       Runtime.trap("Admin access required");
     };
-
     let url = "https://api.football-data.org/v4/competitions/" # competitionCode # "/matches?status=SCHEDULED";
     let headers : [Outcall.Header] = [{ name = "X-Auth-Token"; value = "4324f56c98a948e0a550f0e3fa00acfd" }];
     await Outcall.httpGetRequest(url, headers, transform);

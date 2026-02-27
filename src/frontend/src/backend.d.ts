@@ -41,17 +41,7 @@ export interface backendInterface {
     adminLogin(password: string): Promise<string | null>;
     adminLogout(token: string): Promise<boolean>;
     deletePredictionAsAdmin(token: string, id: bigint): Promise<boolean>;
-    /**
-     * / Fetches only Premier League matches.
-     */
     fetchFootballMatches(token: string): Promise<string>;
-    /**
-     * / Fetch Matches by Competition Code
-     * /
-     * / competitionCode examples:
-     * / "PL" (Premier League), "CL" (Champions League), "PD" (La Liga),
-     * / "BL1" (Bundesliga), "SA" (Serie A), "FL1" (Ligue 1)
-     */
     fetchMatchesByCompetition(token: string, competitionCode: string): Promise<string>;
     getPredictions(): Promise<Array<Prediction>>;
     isAdminAuthenticated(token: string): Promise<boolean>;

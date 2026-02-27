@@ -1,6 +1,5 @@
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
-import Float "mo:core/Float";
 
 module {
   type Prediction = {
@@ -15,20 +14,12 @@ module {
     analysis : Text;
   };
 
-  type OldActor = {
+  type Actor = {
     predictions : Map.Map<Nat, Prediction>;
     nextId : Nat;
   };
 
-  type NewActor = {
-    predictions : Map.Map<Nat, Prediction>;
-    nextId : Nat;
-  };
-
-  public func run(old : OldActor) : NewActor {
-    {
-      predictions = old.predictions;
-      nextId = old.nextId;
-    };
+  public func run(old : Actor) : Actor {
+    old;
   };
 };
