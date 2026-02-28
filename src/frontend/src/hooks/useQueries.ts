@@ -1,55 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Prediction as BasePrediction } from "../backend.d.ts";
+import type { Prediction } from "../backend.d.ts";
 import { useActor } from "./useActor";
 
-// Extend the base Prediction type to include the category field
-// (category is stored in localStorage since the backend doesn't have a category field)
-export type Prediction = BasePrediction & { category?: string };
-
-// --- localStorage category helpers ---
-const CATEGORY_STORAGE_KEY = "markusbet_categories";
-
-type CategoryMap = Record<string, "single" | "parlay">;
-
-export function getCategoryMap(): CategoryMap {
-  try {
-    const raw = localStorage.getItem(CATEGORY_STORAGE_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw) as CategoryMap;
-  } catch {
-    return {};
-  }
-}
-
-export function getCategoryFromStorage(id: bigint): string {
-  const map = getCategoryMap();
-  return map[id.toString()] ?? "single";
-}
-
-export function setCategoryInStorage(
-  id: bigint,
-  category: "single" | "parlay",
-): void {
-  const map = getCategoryMap();
-  map[id.toString()] = category;
-  localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(map));
-}
-
-export function removeCategoryFromStorage(id: bigint): void {
-  const map = getCategoryMap();
-  delete map[id.toString()];
-  localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(map));
-}
-
-function mergeCategoriesFromStorage(
-  predictions: BasePrediction[],
-): Prediction[] {
-  const map = getCategoryMap();
-  return predictions.map((p) => ({
-    ...p,
-    category: map[p.id.toString()] ?? "single",
-  }));
-}
+export type { Prediction };
 
 // ---
 
@@ -58,11 +11,7 @@ export function usePredictions() {
 
   return useQuery<Prediction[]>({
     queryKey: ["predictions"],
-    queryFn: async () => {
-      if (!actor) return [];
-      const raw = await actor.getPredictions();
-      return mergeCategoriesFromStorage(raw);
-    },
+    queryFn: () => fetchAndSeedPredictions(actor),
     enabled: !!actor && !isFetching,
     staleTime: 1000 * 60 * 5,
   });
@@ -117,7 +66,7 @@ export function useAddPrediction() {
       category?: "single" | "parlay";
     }) => {
       if (!actor) throw new Error("No actor");
-      const result = await actor.addPredictionAsAdmin(
+      return actor.addPredictionAsAdmin(
         params.token,
         params.homeTeam,
         params.awayTeam,
@@ -127,13 +76,8 @@ export function useAddPrediction() {
         params.odds,
         params.confidence,
         params.analysis,
+        params.category ?? "single",
       );
-      // Store category in localStorage if we got a valid id back
-      if (result !== null && result !== undefined) {
-        const id = typeof result === "bigint" ? result : BigInt(String(result));
-        setCategoryInStorage(id, params.category ?? "single");
-      }
-      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["predictions"] });
@@ -159,7 +103,7 @@ export function useUpdatePrediction() {
       category?: "single" | "parlay";
     }) => {
       if (!actor) throw new Error("No actor");
-      const result = await actor.updatePredictionAsAdmin(
+      return actor.updatePredictionAsAdmin(
         params.token,
         params.id,
         params.homeTeam,
@@ -170,10 +114,8 @@ export function useUpdatePrediction() {
         params.odds,
         params.confidence,
         params.analysis,
+        params.category ?? "single",
       );
-      // Update category in localStorage
-      setCategoryInStorage(params.id, params.category ?? "single");
-      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["predictions"] });
@@ -181,35 +123,44 @@ export function useUpdatePrediction() {
   });
 }
 
+async function fetchAndSeedPredictions(
+  actor: import("../backend.d.ts").backendInterface | null,
+): Promise<Prediction[]> {
+  if (!actor) return [];
+  const raw = await actor.getPredictions();
+  if (raw.length === 0) {
+    try {
+      await actor.seedInitialData();
+      return await actor.getPredictions();
+    } catch {
+      return [];
+    }
+  }
+  return raw;
+}
+
 export function useGetSinglePredictions() {
   const { actor, isFetching } = useActor();
 
-  return useQuery<Prediction[]>({
-    queryKey: ["singlePredictions"],
-    queryFn: async () => {
-      if (!actor) return [];
-      const all = await actor.getPredictions();
-      const merged = mergeCategoriesFromStorage(all);
-      return merged.filter((p) => !p.category || p.category === "single");
-    },
+  return useQuery<Prediction[], Error, Prediction[]>({
+    queryKey: ["predictions"],
+    queryFn: () => fetchAndSeedPredictions(actor),
     enabled: !!actor && !isFetching,
     staleTime: 1000 * 60 * 5,
+    select: (data) =>
+      data.filter((p) => !p.category || p.category === "single"),
   });
 }
 
 export function useGetParlayPredictions() {
   const { actor, isFetching } = useActor();
 
-  return useQuery<Prediction[]>({
-    queryKey: ["parlayPredictions"],
-    queryFn: async () => {
-      if (!actor) return [];
-      const all = await actor.getPredictions();
-      const merged = mergeCategoriesFromStorage(all);
-      return merged.filter((p) => p.category === "parlay");
-    },
+  return useQuery<Prediction[], Error, Prediction[]>({
+    queryKey: ["predictions"],
+    queryFn: () => fetchAndSeedPredictions(actor),
     enabled: !!actor && !isFetching,
     staleTime: 1000 * 60 * 5,
+    select: (data) => data.filter((p) => p.category === "parlay"),
   });
 }
 
@@ -219,18 +170,10 @@ export function useDeletePrediction() {
   return useMutation({
     mutationFn: async (params: { token: string; id: bigint }) => {
       if (!actor) throw new Error("No actor");
-      const result = await actor.deletePredictionAsAdmin(
-        params.token,
-        params.id,
-      );
-      // Remove from localStorage on success
-      removeCategoryFromStorage(params.id);
-      return result;
+      return actor.deletePredictionAsAdmin(params.token, params.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["predictions"] });
-      queryClient.invalidateQueries({ queryKey: ["singlePredictions"] });
-      queryClient.invalidateQueries({ queryKey: ["parlayPredictions"] });
     },
   });
 }

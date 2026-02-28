@@ -17,6 +17,7 @@ export interface Prediction {
   'odds' : number,
   'league' : string,
   'awayTeam' : string,
+  'category' : string,
   'confidence' : bigint,
   'analysis' : string,
   'matchDate' : string,
@@ -38,7 +39,18 @@ export interface http_request_result {
 }
 export interface _SERVICE {
   'addPredictionAsAdmin' : ActorMethod<
-    [string, string, string, string, string, string, number, bigint, string],
+    [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      number,
+      bigint,
+      string,
+      string,
+    ],
     [] | [bigint]
   >,
   'adminLogin' : ActorMethod<[string], [] | [string]>,
@@ -61,6 +73,7 @@ export interface _SERVICE {
       string,
       number,
       bigint,
+      string,
       string,
     ],
     boolean

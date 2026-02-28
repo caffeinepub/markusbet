@@ -105,6 +105,7 @@ export interface Prediction {
     odds: number;
     league: string;
     awayTeam: string;
+    category: string;
     confidence: bigint;
     analysis: string;
     matchDate: string;
@@ -119,7 +120,7 @@ export interface http_request_result {
     headers: Array<http_header>;
 }
 export interface backendInterface {
-    addPredictionAsAdmin(token: string, homeTeam: string, awayTeam: string, matchDate: string, league: string, predictionType: string, odds: number, confidence: bigint, analysis: string): Promise<bigint | null>;
+    addPredictionAsAdmin(token: string, homeTeam: string, awayTeam: string, matchDate: string, league: string, predictionType: string, odds: number, confidence: bigint, analysis: string, category: string): Promise<bigint | null>;
     adminLogin(password: string): Promise<string | null>;
     adminLogout(token: string): Promise<boolean>;
     deletePredictionAsAdmin(token: string, id: bigint): Promise<boolean>;
@@ -129,21 +130,21 @@ export interface backendInterface {
     isAdminAuthenticated(token: string): Promise<boolean>;
     seedInitialData(): Promise<void>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
-    updatePredictionAsAdmin(token: string, id: bigint, homeTeam: string, awayTeam: string, matchDate: string, league: string, predictionType: string, odds: number, confidence: bigint, analysis: string): Promise<boolean>;
+    updatePredictionAsAdmin(token: string, id: bigint, homeTeam: string, awayTeam: string, matchDate: string, league: string, predictionType: string, odds: number, confidence: bigint, analysis: string, category: string): Promise<boolean>;
 }
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
-    async addPredictionAsAdmin(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string, arg6: number, arg7: bigint, arg8: string): Promise<bigint | null> {
+    async addPredictionAsAdmin(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string, arg6: number, arg7: bigint, arg8: string, arg9: string): Promise<bigint | null> {
         if (this.processError) {
             try {
-                const result = await this.actor.addPredictionAsAdmin(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                const result = await this.actor.addPredictionAsAdmin(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
                 return from_candid_opt_n1(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.addPredictionAsAdmin(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+            const result = await this.actor.addPredictionAsAdmin(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
             return from_candid_opt_n1(this._uploadFile, this._downloadFile, result);
         }
     }
@@ -273,17 +274,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async updatePredictionAsAdmin(arg0: string, arg1: bigint, arg2: string, arg3: string, arg4: string, arg5: string, arg6: string, arg7: number, arg8: bigint, arg9: string): Promise<boolean> {
+    async updatePredictionAsAdmin(arg0: string, arg1: bigint, arg2: string, arg3: string, arg4: string, arg5: string, arg6: string, arg7: number, arg8: bigint, arg9: string, arg10: string): Promise<boolean> {
         if (this.processError) {
             try {
-                const result = await this.actor.updatePredictionAsAdmin(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
+                const result = await this.actor.updatePredictionAsAdmin(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.updatePredictionAsAdmin(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
+            const result = await this.actor.updatePredictionAsAdmin(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
             return result;
         }
     }

@@ -911,9 +911,13 @@ function getTodayDateStr(): string {
 }
 
 function isMatchToday(matchDate: string): boolean {
-  if (!matchDate) return false;
+  // If date is missing or empty, show the prediction by default
+  if (!matchDate || matchDate.trim() === "") return true;
   // matchDate can be "2025-02-28T15:30" or "2025-02-28" or similar ISO string
-  const datePart = matchDate.slice(0, 10);
+  // Be lenient: compare only the date portion
+  const datePart = matchDate.trim().slice(0, 10);
+  // Also accept if it's not a recognisable date-like string
+  if (!/^\d{4}-\d{2}-\d{2}/.test(datePart)) return true;
   return datePart === getTodayDateStr();
 }
 
@@ -987,7 +991,7 @@ function DateFilterToggle({
 // --- Main App ---
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("single");
-  const [todayOnly, setTodayOnly] = useState(true);
+  const [todayOnly, setTodayOnly] = useState(false);
 
   const {
     data: singleData,
