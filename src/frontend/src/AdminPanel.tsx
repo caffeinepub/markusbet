@@ -151,6 +151,7 @@ function PredictionFormDialog({
   prefillData,
 }: PredictionFormDialogProps) {
   const [form, setForm] = useState<PredictionForm>(EMPTY_FORM);
+  const [category, setCategory] = useState<"single" | "parlay">("single");
   const addMutation = useAddPrediction();
   const updateMutation = useUpdatePrediction();
 
@@ -158,10 +159,17 @@ function PredictionFormDialog({
     if (open) {
       if (editTarget) {
         setForm(formFromPrediction(editTarget));
+        setCategory(
+          (editTarget.category as "single" | "parlay") === "parlay"
+            ? "parlay"
+            : "single",
+        );
       } else if (prefillData) {
         setForm({ ...EMPTY_FORM, ...prefillData });
+        setCategory("single");
       } else {
         setForm(EMPTY_FORM);
+        setCategory("single");
       }
     }
   }, [open, editTarget, prefillData]);
@@ -205,6 +213,7 @@ function PredictionFormDialog({
           odds,
           confidence: BigInt(confidence),
           analysis: form.analysis,
+          category,
         });
         if (ok) {
           toast.success("Prediction updated!");
@@ -223,6 +232,7 @@ function PredictionFormDialog({
           odds,
           confidence: BigInt(confidence),
           analysis: form.analysis,
+          category,
         });
         if (newId !== null) {
           toast.success("Prediction added!");
@@ -276,6 +286,93 @@ function PredictionFormDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+          {/* Category toggle */}
+          <div>
+            <p
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 700,
+                fontSize: "0.72rem",
+                letterSpacing: "0.10em",
+                color: "oklch(0.60 0.02 265)",
+                textTransform: "uppercase",
+                marginBottom: "0.5rem",
+              }}
+            >
+              Κατηγορία
+            </p>
+            <div
+              style={{
+                display: "flex",
+                gap: "0.4rem",
+                background: "oklch(0.12 0.016 265)",
+                border: "1px solid oklch(0.26 0.025 265)",
+                borderRadius: "0.5rem",
+                padding: "0.25rem",
+                width: "fit-content",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setCategory("single")}
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 700,
+                  fontSize: "0.78rem",
+                  letterSpacing: "0.08em",
+                  padding: "0.4rem 1rem",
+                  borderRadius: "0.35rem",
+                  cursor: "pointer",
+                  border: "none",
+                  transition: "all 0.15s",
+                  background:
+                    category === "single"
+                      ? "oklch(0.82 0.22 142 / 0.18)"
+                      : "transparent",
+                  color:
+                    category === "single"
+                      ? "oklch(0.82 0.22 142)"
+                      : "oklch(0.50 0.02 265)",
+                  boxShadow:
+                    category === "single"
+                      ? "0 0 0 1px oklch(0.82 0.22 142 / 0.35)"
+                      : "none",
+                }}
+              >
+                ⚽ ΚΑΝΟΝΙΚΗ ΠΡΟΒΛΕΨΗ
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategory("parlay")}
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 700,
+                  fontSize: "0.78rem",
+                  letterSpacing: "0.08em",
+                  padding: "0.4rem 1rem",
+                  borderRadius: "0.35rem",
+                  cursor: "pointer",
+                  border: "none",
+                  transition: "all 0.15s",
+                  background:
+                    category === "parlay"
+                      ? "oklch(0.88 0.18 85 / 0.15)"
+                      : "transparent",
+                  color:
+                    category === "parlay"
+                      ? "oklch(0.88 0.18 85)"
+                      : "oklch(0.50 0.02 265)",
+                  boxShadow:
+                    category === "parlay"
+                      ? "0 0 0 1px oklch(0.88 0.18 85 / 0.40)"
+                      : "none",
+                }}
+              >
+                🎰 ΠΑΡΟΛΙ
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <Field label="Home Team" id="homeTeam" required>
               <Input
@@ -1759,6 +1856,15 @@ function AdminDashboard({
                               textAlign: "center",
                             }}
                           >
+                            Category
+                          </th>
+                          <th
+                            style={{
+                              ...tableHeadStyle,
+                              padding: "0.75rem 0.75rem",
+                              textAlign: "center",
+                            }}
+                          >
                             Odds
                           </th>
                           <th
@@ -1859,6 +1965,52 @@ function AdminDashboard({
                                 >
                                   {p.prediction}
                                 </span>
+                              </td>
+                              <td
+                                style={{
+                                  padding: "0.85rem 0.75rem",
+                                  textAlign: "center",
+                                }}
+                              >
+                                {p.category === "parlay" ? (
+                                  <span
+                                    style={{
+                                      fontFamily:
+                                        "'Barlow Condensed', sans-serif",
+                                      fontWeight: 800,
+                                      fontSize: "0.65rem",
+                                      letterSpacing: "0.10em",
+                                      padding: "0.2rem 0.55rem",
+                                      borderRadius: "0.3rem",
+                                      background: "oklch(0.88 0.18 85 / 0.15)",
+                                      border:
+                                        "1px solid oklch(0.88 0.18 85 / 0.45)",
+                                      color: "oklch(0.88 0.18 85)",
+                                      whiteSpace: "nowrap" as const,
+                                    }}
+                                  >
+                                    🎰 ΠΑΡΟΛΙ
+                                  </span>
+                                ) : (
+                                  <span
+                                    style={{
+                                      fontFamily:
+                                        "'Barlow Condensed', sans-serif",
+                                      fontWeight: 800,
+                                      fontSize: "0.65rem",
+                                      letterSpacing: "0.10em",
+                                      padding: "0.2rem 0.55rem",
+                                      borderRadius: "0.3rem",
+                                      background: "oklch(0.82 0.22 142 / 0.12)",
+                                      border:
+                                        "1px solid oklch(0.82 0.22 142 / 0.35)",
+                                      color: "oklch(0.82 0.22 142)",
+                                      whiteSpace: "nowrap" as const,
+                                    }}
+                                  >
+                                    ⚽ SINGLE
+                                  </span>
+                                )}
                               </td>
                               <td
                                 style={{

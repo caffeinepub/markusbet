@@ -1,6 +1,57 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Prediction } from "../backend.d.ts";
+import type { Prediction as BasePrediction } from "../backend.d.ts";
 import { useActor } from "./useActor";
+
+// Extend the base Prediction type to include the category field
+// (category is stored in localStorage since the backend doesn't have a category field)
+export type Prediction = BasePrediction & { category?: string };
+
+// --- localStorage category helpers ---
+const CATEGORY_STORAGE_KEY = "markusbet_categories";
+
+type CategoryMap = Record<string, "single" | "parlay">;
+
+export function getCategoryMap(): CategoryMap {
+  try {
+    const raw = localStorage.getItem(CATEGORY_STORAGE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as CategoryMap;
+  } catch {
+    return {};
+  }
+}
+
+export function getCategoryFromStorage(id: bigint): string {
+  const map = getCategoryMap();
+  return map[id.toString()] ?? "single";
+}
+
+export function setCategoryInStorage(
+  id: bigint,
+  category: "single" | "parlay",
+): void {
+  const map = getCategoryMap();
+  map[id.toString()] = category;
+  localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(map));
+}
+
+export function removeCategoryFromStorage(id: bigint): void {
+  const map = getCategoryMap();
+  delete map[id.toString()];
+  localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(map));
+}
+
+function mergeCategoriesFromStorage(
+  predictions: BasePrediction[],
+): Prediction[] {
+  const map = getCategoryMap();
+  return predictions.map((p) => ({
+    ...p,
+    category: map[p.id.toString()] ?? "single",
+  }));
+}
+
+// ---
 
 export function usePredictions() {
   const { actor, isFetching } = useActor();
@@ -9,7 +60,8 @@ export function usePredictions() {
     queryKey: ["predictions"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getPredictions();
+      const raw = await actor.getPredictions();
+      return mergeCategoriesFromStorage(raw);
     },
     enabled: !!actor && !isFetching,
     staleTime: 1000 * 60 * 5,
@@ -62,9 +114,10 @@ export function useAddPrediction() {
       odds: number;
       confidence: bigint;
       analysis: string;
+      category?: "single" | "parlay";
     }) => {
       if (!actor) throw new Error("No actor");
-      return actor.addPredictionAsAdmin(
+      const result = await actor.addPredictionAsAdmin(
         params.token,
         params.homeTeam,
         params.awayTeam,
@@ -75,6 +128,12 @@ export function useAddPrediction() {
         params.confidence,
         params.analysis,
       );
+      // Store category in localStorage if we got a valid id back
+      if (result !== null && result !== undefined) {
+        const id = typeof result === "bigint" ? result : BigInt(String(result));
+        setCategoryInStorage(id, params.category ?? "single");
+      }
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["predictions"] });
@@ -97,9 +156,10 @@ export function useUpdatePrediction() {
       odds: number;
       confidence: bigint;
       analysis: string;
+      category?: "single" | "parlay";
     }) => {
       if (!actor) throw new Error("No actor");
-      return actor.updatePredictionAsAdmin(
+      const result = await actor.updatePredictionAsAdmin(
         params.token,
         params.id,
         params.homeTeam,
@@ -111,10 +171,45 @@ export function useUpdatePrediction() {
         params.confidence,
         params.analysis,
       );
+      // Update category in localStorage
+      setCategoryInStorage(params.id, params.category ?? "single");
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["predictions"] });
     },
+  });
+}
+
+export function useGetSinglePredictions() {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<Prediction[]>({
+    queryKey: ["singlePredictions"],
+    queryFn: async () => {
+      if (!actor) return [];
+      const all = await actor.getPredictions();
+      const merged = mergeCategoriesFromStorage(all);
+      return merged.filter((p) => !p.category || p.category === "single");
+    },
+    enabled: !!actor && !isFetching,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useGetParlayPredictions() {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<Prediction[]>({
+    queryKey: ["parlayPredictions"],
+    queryFn: async () => {
+      if (!actor) return [];
+      const all = await actor.getPredictions();
+      const merged = mergeCategoriesFromStorage(all);
+      return merged.filter((p) => p.category === "parlay");
+    },
+    enabled: !!actor && !isFetching,
+    staleTime: 1000 * 60 * 5,
   });
 }
 
@@ -124,10 +219,18 @@ export function useDeletePrediction() {
   return useMutation({
     mutationFn: async (params: { token: string; id: bigint }) => {
       if (!actor) throw new Error("No actor");
-      return actor.deletePredictionAsAdmin(params.token, params.id);
+      const result = await actor.deletePredictionAsAdmin(
+        params.token,
+        params.id,
+      );
+      // Remove from localStorage on success
+      removeCategoryFromStorage(params.id);
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["predictions"] });
+      queryClient.invalidateQueries({ queryKey: ["singlePredictions"] });
+      queryClient.invalidateQueries({ queryKey: ["parlayPredictions"] });
     },
   });
 }
@@ -157,5 +260,3 @@ export function useFetchMatchesByCompetition() {
     },
   });
 }
-
-export type { Prediction };

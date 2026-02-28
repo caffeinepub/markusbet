@@ -1,6 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { usePredictions } from "./hooks/useQueries";
+import { useState } from "react";
+import {
+  useGetParlayPredictions,
+  useGetSinglePredictions,
+} from "./hooks/useQueries";
 import type { Prediction } from "./hooks/useQueries";
 
 // --- Utility helpers ---
@@ -61,13 +65,19 @@ function getLeagueEmoji(league: string): string {
 interface PredictionCardProps {
   prediction: Prediction;
   index: number;
+  isParlay?: boolean;
 }
 
-function PredictionCard({ prediction, index }: PredictionCardProps) {
+function PredictionCard({
+  prediction,
+  index,
+  isParlay = false,
+}: PredictionCardProps) {
   const predType = getPredictionType(prediction.prediction);
   const confidence = Number(prediction.confidence);
   const confidenceColor = getConfidenceColor(confidence);
   const confidenceLabel = getConfidenceLabel(confidence);
+  const parlayAccent = "oklch(0.88 0.18 85)";
 
   return (
     <motion.article
@@ -78,13 +88,24 @@ function PredictionCard({ prediction, index }: PredictionCardProps) {
         delay: index * 0.1,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className="card-glow-green glass-surface rounded-xl overflow-hidden transition-all duration-300 group"
+      className="glass-surface rounded-xl overflow-hidden transition-all duration-300 group"
+      style={
+        isParlay
+          ? {
+              boxShadow:
+                "0 0 0 1px oklch(0.88 0.18 85 / 0.18), 0 4px 24px oklch(0 0 0 / 0.3)",
+              border: "1px solid oklch(0.88 0.18 85 / 0.25)",
+            }
+          : undefined
+      }
     >
-      {/* Card top accent line - color coded */}
+      {/* Card top accent line */}
       <div
         className="h-0.5 w-full"
         style={{
-          background: `linear-gradient(90deg, ${confidenceColor}, ${confidenceColor}88, transparent)`,
+          background: isParlay
+            ? `linear-gradient(90deg, ${parlayAccent}, ${parlayAccent}88, transparent)`
+            : `linear-gradient(90deg, ${confidenceColor}, ${confidenceColor}88, transparent)`,
         }}
       />
 
@@ -108,6 +129,24 @@ function PredictionCard({ prediction, index }: PredictionCardProps) {
             >
               {prediction.league}
             </span>
+            {isParlay && (
+              <span
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 800,
+                  fontSize: "0.65rem",
+                  letterSpacing: "0.12em",
+                  padding: "0.15rem 0.5rem",
+                  borderRadius: "0.3rem",
+                  background: "oklch(0.88 0.18 85 / 0.15)",
+                  border: "1px solid oklch(0.88 0.18 85 / 0.45)",
+                  color: "oklch(0.88 0.18 85)",
+                  textTransform: "uppercase",
+                }}
+              >
+                ΠΑΡΟΛΙ
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             <span
@@ -664,9 +703,327 @@ function Footer() {
   );
 }
 
+// --- Tab Switcher ---
+type ActiveTab = "single" | "parlay";
+
+function TabSwitcher({
+  active,
+  onChange,
+}: {
+  active: ActiveTab;
+  onChange: (tab: ActiveTab) => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.05 }}
+      className="flex items-center gap-1 mb-6"
+      style={{
+        background: "oklch(0.14 0.018 265)",
+        border: "1px solid oklch(0.26 0.025 265)",
+        borderRadius: "0.6rem",
+        padding: "0.3rem",
+        width: "fit-content",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => onChange("single")}
+        style={{
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: "0.88rem",
+          letterSpacing: "0.10em",
+          padding: "0.5rem 1.3rem",
+          borderRadius: "0.4rem",
+          cursor: "pointer",
+          border: "none",
+          transition: "all 0.18s",
+          background:
+            active === "single" ? "oklch(0.20 0.025 265)" : "transparent",
+          color:
+            active === "single"
+              ? "oklch(0.95 0.01 265)"
+              : "oklch(0.48 0.02 265)",
+          borderBottom:
+            active === "single"
+              ? "2px solid oklch(0.82 0.22 142)"
+              : "2px solid transparent",
+        }}
+      >
+        ⚽ ΠΡΟΒΛΕΨΕΙΣ
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("parlay")}
+        style={{
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: "0.88rem",
+          letterSpacing: "0.10em",
+          padding: "0.5rem 1.3rem",
+          borderRadius: "0.4rem",
+          cursor: "pointer",
+          border: "none",
+          transition: "all 0.18s",
+          background:
+            active === "parlay" ? "oklch(0.88 0.18 85 / 0.10)" : "transparent",
+          color:
+            active === "parlay"
+              ? "oklch(0.88 0.18 85)"
+              : "oklch(0.48 0.02 265)",
+          borderBottom:
+            active === "parlay"
+              ? "2px solid oklch(0.88 0.18 85)"
+              : "2px solid transparent",
+        }}
+      >
+        🎰 ΠΑΡΟΛΙ
+      </button>
+    </motion.div>
+  );
+}
+
+// --- Predictions Content ---
+function PredictionsContent({
+  predictions,
+  isLoading,
+  isError,
+  isParlay,
+}: {
+  predictions: Prediction[] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  isParlay: boolean;
+}) {
+  const emptyLabel = isParlay
+    ? "ΔΕΝ ΥΠΑΡΧΟΥΝ ΠΑΡΟΛΙ"
+    : "NO PREDICTIONS AVAILABLE";
+
+  return (
+    <AnimatePresence mode="wait">
+      {isLoading ? (
+        <motion.div
+          key="loading"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="space-y-4"
+        >
+          {(["s1", "s2", "s3", "s4", "s5"] as const).map((id, i) => (
+            <PredictionSkeleton key={id} index={i} />
+          ))}
+        </motion.div>
+      ) : isError ? (
+        <motion.div
+          key="error"
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="rounded-xl p-10 text-center"
+          style={{
+            background: "oklch(0.16 0.02 265)",
+            border: "1px solid oklch(0.65 0.22 25 / 0.3)",
+          }}
+        >
+          <p style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>⚽</p>
+          <p
+            style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 700,
+              fontSize: "1.1rem",
+              color: "oklch(0.75 0.15 25)",
+              letterSpacing: "0.04em",
+            }}
+          >
+            UNABLE TO LOAD PREDICTIONS
+          </p>
+          <p
+            style={{
+              fontSize: "0.78rem",
+              color: "oklch(0.50 0.02 265)",
+              marginTop: "0.5rem",
+            }}
+          >
+            Please try refreshing the page.
+          </p>
+        </motion.div>
+      ) : predictions && predictions.length > 0 ? (
+        <motion.div key="predictions" className="space-y-4">
+          {predictions.map((prediction, index) => (
+            <PredictionCard
+              key={`${prediction.homeTeam}-${prediction.awayTeam}-${index}`}
+              prediction={prediction}
+              index={index}
+              isParlay={isParlay}
+            />
+          ))}
+        </motion.div>
+      ) : (
+        <motion.div
+          key="empty"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="rounded-xl p-10 text-center"
+          style={{
+            background: "oklch(0.16 0.02 265)",
+            border: isParlay
+              ? "1px solid oklch(0.88 0.18 85 / 0.2)"
+              : "1px solid oklch(0.28 0.025 265)",
+          }}
+        >
+          <p style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>
+            {isParlay ? "🎰" : "⚽"}
+          </p>
+          <p
+            style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 700,
+              fontSize: "1.1rem",
+              color: isParlay
+                ? "oklch(0.88 0.18 85 / 0.7)"
+                : "oklch(0.55 0.02 265)",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {emptyLabel}
+          </p>
+          {isParlay && (
+            <p
+              style={{
+                fontSize: "0.75rem",
+                color: "oklch(0.42 0.02 265)",
+                marginTop: "0.5rem",
+              }}
+            >
+              Πρόσθεσε παρολί από το Admin Panel
+            </p>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// --- Date filter helper ---
+function getTodayDateStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function isMatchToday(matchDate: string): boolean {
+  if (!matchDate) return false;
+  // matchDate can be "2025-02-28T15:30" or "2025-02-28" or similar ISO string
+  const datePart = matchDate.slice(0, 10);
+  return datePart === getTodayDateStr();
+}
+
+// --- Date Filter Toggle ---
+function DateFilterToggle({
+  todayOnly,
+  onChange,
+}: {
+  todayOnly: boolean;
+  onChange: (val: boolean) => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: 0.1 }}
+      className="flex items-center gap-2 mb-5"
+    >
+      <button
+        type="button"
+        onClick={() => onChange(true)}
+        style={{
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 700,
+          fontSize: "0.75rem",
+          letterSpacing: "0.09em",
+          padding: "0.35rem 0.9rem",
+          borderRadius: "0.4rem",
+          cursor: "pointer",
+          border: "none",
+          transition: "all 0.18s",
+          background: todayOnly
+            ? "oklch(0.82 0.22 142 / 0.18)"
+            : "oklch(0.16 0.02 265)",
+          color: todayOnly ? "oklch(0.88 0.20 142)" : "oklch(0.45 0.02 265)",
+          boxShadow: todayOnly
+            ? "0 0 0 1px oklch(0.82 0.22 142 / 0.40)"
+            : "0 0 0 1px oklch(0.28 0.025 265)",
+        }}
+      >
+        📅 ΣΗΜΕΡΑ
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(false)}
+        style={{
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 700,
+          fontSize: "0.75rem",
+          letterSpacing: "0.09em",
+          padding: "0.35rem 0.9rem",
+          borderRadius: "0.4rem",
+          cursor: "pointer",
+          border: "none",
+          transition: "all 0.18s",
+          background: !todayOnly
+            ? "oklch(0.45 0.18 230 / 0.15)"
+            : "oklch(0.16 0.02 265)",
+          color: !todayOnly ? "oklch(0.72 0.14 230)" : "oklch(0.45 0.02 265)",
+          boxShadow: !todayOnly
+            ? "0 0 0 1px oklch(0.45 0.18 230 / 0.4)"
+            : "0 0 0 1px oklch(0.28 0.025 265)",
+        }}
+      >
+        📋 ΟΛΕΣ
+      </button>
+    </motion.div>
+  );
+}
+
 // --- Main App ---
 export default function App() {
-  const { data: predictions, isLoading, isError } = usePredictions();
+  const [activeTab, setActiveTab] = useState<ActiveTab>("single");
+  const [todayOnly, setTodayOnly] = useState(true);
+
+  const {
+    data: singleData,
+    isLoading: singleLoading,
+    isError: singleError,
+  } = useGetSinglePredictions();
+
+  const {
+    data: parlayData,
+    isLoading: parlayLoading,
+    isError: parlayError,
+  } = useGetParlayPredictions();
+
+  const singlePredictions: Prediction[] = singleData ?? [];
+  const parlayPredictions: Prediction[] = parlayData ?? [];
+
+  // Apply today filter
+  const filteredSingle = todayOnly
+    ? singlePredictions.filter((p) => isMatchToday(p.matchDate))
+    : singlePredictions;
+  const filteredParlay = todayOnly
+    ? parlayPredictions.filter((p) => isMatchToday(p.matchDate))
+    : parlayPredictions;
+
+  const activePredictions =
+    activeTab === "single" ? filteredSingle : filteredParlay;
+  const isLoading = activeTab === "single" ? singleLoading : parlayLoading;
+  const isError = activeTab === "single" ? singleError : parlayError;
+
+  // Determine empty state type: todayOnly with no results vs genuinely empty
+  const hasPredictionsAtAll =
+    activeTab === "single"
+      ? singlePredictions.length > 0
+      : parlayPredictions.length > 0;
+  const emptyBecauseFilter =
+    todayOnly && hasPredictionsAtAll && activePredictions.length === 0;
 
   return (
     <div
@@ -687,9 +1044,12 @@ export default function App() {
               width: 3,
               height: 28,
               background:
-                "linear-gradient(180deg, oklch(0.82 0.22 142), oklch(0.70 0.20 160))",
+                activeTab === "parlay"
+                  ? "linear-gradient(180deg, oklch(0.88 0.18 85), oklch(0.75 0.16 85))"
+                  : "linear-gradient(180deg, oklch(0.82 0.22 142), oklch(0.70 0.20 160))",
               borderRadius: 2,
               flexShrink: 0,
+              transition: "background 0.3s",
             }}
           />
           <div>
@@ -703,7 +1063,11 @@ export default function App() {
                 lineHeight: 1,
               }}
             >
-              TODAY'S PREDICTIONS
+              {activeTab === "parlay"
+                ? "ΠΑΡΟΛΙ"
+                : todayOnly
+                  ? "ΣΗΜΕΡΙΝΕΣ ΠΡΟΒΛΕΨΕΙΣ"
+                  : "ΟΛΕΣ ΟΙ ΠΡΟΒΛΕΨΕΙΣ"}
             </h2>
             <p
               style={{
@@ -713,98 +1077,99 @@ export default function App() {
                 marginTop: 2,
               }}
             >
-              Expertly curated football tips
+              {activeTab === "parlay"
+                ? "Συνδυαστικές προβλέψεις"
+                : todayOnly
+                  ? "Προβλέψεις για σήμερα"
+                  : "Expertly curated football tips"}
             </p>
           </div>
         </motion.div>
 
+        {/* Tab Switcher */}
+        <TabSwitcher active={activeTab} onChange={setActiveTab} />
+
+        {/* Date filter toggle */}
+        <DateFilterToggle todayOnly={todayOnly} onChange={setTodayOnly} />
+
         {/* Stats bar */}
-        {!isLoading && predictions && predictions.length > 0 && (
-          <StatsBar predictions={predictions} />
+        {!isLoading && activePredictions.length > 0 && (
+          <StatsBar predictions={activePredictions} />
         )}
 
         {/* Content */}
         <AnimatePresence mode="wait">
-          {isLoading ? (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-4"
-            >
-              {(["s1", "s2", "s3", "s4", "s5"] as const).map((id, i) => (
-                <PredictionSkeleton key={id} index={i} />
-              ))}
-            </motion.div>
-          ) : isError ? (
-            <motion.div
-              key="error"
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="rounded-xl p-10 text-center"
-              style={{
-                background: "oklch(0.16 0.02 265)",
-                border: "1px solid oklch(0.65 0.22 25 / 0.3)",
-              }}
-            >
-              <p style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>⚽</p>
-              <p
+          <motion.div
+            key={`${activeTab}-${todayOnly ? "today" : "all"}`}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25 }}
+          >
+            {emptyBecauseFilter ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="rounded-xl p-10 text-center"
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
-                  fontWeight: 700,
-                  fontSize: "1.1rem",
-                  color: "oklch(0.75 0.15 25)",
-                  letterSpacing: "0.04em",
+                  background: "oklch(0.16 0.02 265)",
+                  border:
+                    activeTab === "parlay"
+                      ? "1px solid oklch(0.88 0.18 85 / 0.2)"
+                      : "1px solid oklch(0.28 0.025 265)",
                 }}
               >
-                UNABLE TO LOAD PREDICTIONS
-              </p>
-              <p
-                style={{
-                  fontSize: "0.78rem",
-                  color: "oklch(0.50 0.02 265)",
-                  marginTop: "0.5rem",
-                }}
-              >
-                Please try refreshing the page.
-              </p>
-            </motion.div>
-          ) : predictions && predictions.length > 0 ? (
-            <motion.div key="predictions" className="space-y-4">
-              {predictions.map((prediction, index) => (
-                <PredictionCard
-                  key={`${prediction.homeTeam}-${prediction.awayTeam}-${index}`}
-                  prediction={prediction}
-                  index={index}
-                />
-              ))}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="empty"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="rounded-xl p-10 text-center"
-              style={{
-                background: "oklch(0.16 0.02 265)",
-                border: "1px solid oklch(0.28 0.025 265)",
-              }}
-            >
-              <p style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>⚽</p>
-              <p
-                style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
-                  fontWeight: 700,
-                  fontSize: "1.1rem",
-                  color: "oklch(0.55 0.02 265)",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                NO PREDICTIONS AVAILABLE
-              </p>
-            </motion.div>
-          )}
+                <p style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>📅</p>
+                <p
+                  style={{
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    fontWeight: 700,
+                    fontSize: "1.1rem",
+                    color: "oklch(0.75 0.02 265)",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  ΔΕΝ ΥΠΑΡΧΟΥΝ ΣΗΜΕΡΙΝΕΣ ΠΡΟΒΛΕΨΕΙΣ
+                </p>
+                <p
+                  style={{
+                    fontSize: "0.78rem",
+                    color: "oklch(0.48 0.02 265)",
+                    marginTop: "0.5rem",
+                  }}
+                >
+                  Πρόσθεσε προβλέψεις για σήμερα από το Admin Panel
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTodayOnly(false)}
+                  style={{
+                    marginTop: "1rem",
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    fontWeight: 700,
+                    fontSize: "0.72rem",
+                    letterSpacing: "0.08em",
+                    padding: "0.4rem 1rem",
+                    borderRadius: "0.4rem",
+                    cursor: "pointer",
+                    border: "none",
+                    background: "oklch(0.22 0.025 265)",
+                    color: "oklch(0.65 0.02 265)",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  📋 ΔΕΣ ΟΛΕΣ ΤΙΣ ΠΡΟΒΛΕΨΕΙΣ
+                </button>
+              </motion.div>
+            ) : (
+              <PredictionsContent
+                predictions={activePredictions}
+                isLoading={isLoading}
+                isError={isError}
+                isParlay={activeTab === "parlay"}
+              />
+            )}
+          </motion.div>
         </AnimatePresence>
       </main>
 
