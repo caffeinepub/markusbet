@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Prediction } from "../backend.d.ts";
+import type { MatchResult, Prediction } from "../backend.d.ts";
 import { useActor } from "./useActor";
 
-export type { Prediction };
+export type { MatchResult, Prediction };
 
 // ---
 
@@ -63,7 +63,7 @@ export function useAddPrediction() {
       odds: number;
       confidence: bigint;
       analysis: string;
-      category?: "single" | "parlay";
+      category?: "single" | "parlay" | "match_of_day";
     }) => {
       if (!actor) throw new Error("No actor");
       return actor.addPredictionAsAdmin(
@@ -100,7 +100,7 @@ export function useUpdatePrediction() {
       odds: number;
       confidence: bigint;
       analysis: string;
-      category?: "single" | "parlay";
+      category?: "single" | "parlay" | "match_of_day";
     }) => {
       if (!actor) throw new Error("No actor");
       return actor.updatePredictionAsAdmin(
@@ -164,6 +164,18 @@ export function useGetParlayPredictions() {
   });
 }
 
+export function useGetMatchOfDayPredictions() {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<Prediction[], Error, Prediction[]>({
+    queryKey: ["predictions"],
+    queryFn: () => fetchAndSeedPredictions(actor),
+    enabled: !!actor && !isFetching,
+    staleTime: 1000 * 60 * 5,
+    select: (data) => data.filter((p) => p.category === "match_of_day"),
+  });
+}
+
 export function useDeletePrediction() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
@@ -200,6 +212,52 @@ export function useFetchMatchesByCompetition() {
     }): Promise<string> => {
       if (!actor) throw new Error("No actor");
       return actor.fetchMatchesByCompetition(token, competitionCode);
+    },
+  });
+}
+
+export function useMatchHistory() {
+  const { actor, isFetching } = useActor();
+  return useQuery<MatchResult[]>({
+    queryKey: ["matchHistory"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMatchHistory();
+    },
+    enabled: !!actor && !isFetching,
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+export function useArchivePrediction() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      token: string;
+      id: bigint;
+      result: string;
+    }) => {
+      if (!actor) throw new Error("No actor");
+      return actor.archivePrediction(params.token, params.id, params.result);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["predictions"] });
+      queryClient.invalidateQueries({ queryKey: ["matchHistory"] });
+    },
+  });
+}
+
+export function useDeleteHistoryEntry() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { token: string; id: bigint }) => {
+      if (!actor) throw new Error("No actor");
+      return actor.deleteHistoryEntry(params.token, params.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["matchHistory"] });
     },
   });
 }

@@ -8,6 +8,20 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
+export const MatchResult = IDL.Record({
+  'id' : IDL.Nat,
+  'result' : IDL.Text,
+  'prediction' : IDL.Text,
+  'homeTeam' : IDL.Text,
+  'odds' : IDL.Float64,
+  'league' : IDL.Text,
+  'awayTeam' : IDL.Text,
+  'category' : IDL.Text,
+  'confidence' : IDL.Nat,
+  'analysis' : IDL.Text,
+  'matchDate' : IDL.Text,
+  'archivedAt' : IDL.Int,
+});
 export const Prediction = IDL.Record({
   'id' : IDL.Nat,
   'prediction' : IDL.Text,
@@ -58,9 +72,12 @@ export const idlService = IDL.Service({
     ),
   'adminLogin' : IDL.Func([IDL.Text], [IDL.Opt(IDL.Text)], []),
   'adminLogout' : IDL.Func([IDL.Text], [IDL.Bool], []),
+  'archivePrediction' : IDL.Func([IDL.Text, IDL.Nat, IDL.Text], [IDL.Bool], []),
+  'deleteHistoryEntry' : IDL.Func([IDL.Text, IDL.Nat], [IDL.Bool], []),
   'deletePredictionAsAdmin' : IDL.Func([IDL.Text, IDL.Nat], [IDL.Bool], []),
   'fetchFootballMatches' : IDL.Func([IDL.Text], [IDL.Text], []),
   'fetchMatchesByCompetition' : IDL.Func([IDL.Text, IDL.Text], [IDL.Text], []),
+  'getMatchHistory' : IDL.Func([], [IDL.Vec(MatchResult)], ['query']),
   'getPredictions' : IDL.Func([], [IDL.Vec(Prediction)], ['query']),
   'isAdminAuthenticated' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
   'seedInitialData' : IDL.Func([], [], []),
@@ -91,6 +108,20 @@ export const idlService = IDL.Service({
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
+  const MatchResult = IDL.Record({
+    'id' : IDL.Nat,
+    'result' : IDL.Text,
+    'prediction' : IDL.Text,
+    'homeTeam' : IDL.Text,
+    'odds' : IDL.Float64,
+    'league' : IDL.Text,
+    'awayTeam' : IDL.Text,
+    'category' : IDL.Text,
+    'confidence' : IDL.Nat,
+    'analysis' : IDL.Text,
+    'matchDate' : IDL.Text,
+    'archivedAt' : IDL.Int,
+  });
   const Prediction = IDL.Record({
     'id' : IDL.Nat,
     'prediction' : IDL.Text,
@@ -138,6 +169,12 @@ export const idlFactory = ({ IDL }) => {
       ),
     'adminLogin' : IDL.Func([IDL.Text], [IDL.Opt(IDL.Text)], []),
     'adminLogout' : IDL.Func([IDL.Text], [IDL.Bool], []),
+    'archivePrediction' : IDL.Func(
+        [IDL.Text, IDL.Nat, IDL.Text],
+        [IDL.Bool],
+        [],
+      ),
+    'deleteHistoryEntry' : IDL.Func([IDL.Text, IDL.Nat], [IDL.Bool], []),
     'deletePredictionAsAdmin' : IDL.Func([IDL.Text, IDL.Nat], [IDL.Bool], []),
     'fetchFootballMatches' : IDL.Func([IDL.Text], [IDL.Text], []),
     'fetchMatchesByCompetition' : IDL.Func(
@@ -145,6 +182,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text],
         [],
       ),
+    'getMatchHistory' : IDL.Func([], [IDL.Vec(MatchResult)], ['query']),
     'getPredictions' : IDL.Func([], [IDL.Vec(Prediction)], ['query']),
     'isAdminAuthenticated' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
     'seedInitialData' : IDL.Func([], [], []),

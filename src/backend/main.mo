@@ -1,5 +1,6 @@
 import Float "mo:core/Float";
 import Iter "mo:core/Iter";
+import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Order "mo:core/Order";
@@ -8,10 +9,8 @@ import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 
-import List "mo:core/List";
+import Array "mo:core/Array";
 
-
-// Apply migration on upgrade.
 
 actor {
   type Prediction = {
@@ -33,8 +32,33 @@ actor {
     };
   };
 
-  let predictions = Map.empty<Nat, Prediction>();
+  type MatchResult = {
+    id : Nat;
+    homeTeam : Text;
+    awayTeam : Text;
+    matchDate : Text;
+    league : Text;
+    prediction : Text;
+    odds : Float;
+    confidence : Nat;
+    analysis : Text;
+    category : Text;
+    result : Text;
+    archivedAt : Int;
+  };
+
+  module MatchResult {
+    public func compareByArchivedAt(a : MatchResult, b : MatchResult) : Order.Order {
+      if (a.archivedAt > b.archivedAt) { return #less };
+      if (a.archivedAt < b.archivedAt) { return #greater };
+      #equal;
+    };
+  };
+
   var nextId = 1 : Nat;
+
+  let predictions = Map.empty<Nat, Prediction>();
+  let matchHistory = Map.empty<Nat, MatchResult>();
 
   let adminSessions = Map.empty<Text, Int>();
   let adminPassword = "MarkusBet2024!";
@@ -121,6 +145,56 @@ actor {
     true;
   };
 
+  public shared ({ caller }) func archivePrediction(token : Text, predictionId : Nat, result : Text) : async Bool {
+    if (not adminSessions.containsKey(token)) {
+      Runtime.trap("Admin access required");
+    };
+    switch (predictions.get(predictionId)) {
+      case (null) { Runtime.trap("Prediction not found") };
+      case (?prediction) {
+        let archivedMatch : MatchResult = {
+          id = prediction.id;
+          homeTeam = prediction.homeTeam;
+          awayTeam = prediction.awayTeam;
+          matchDate = prediction.matchDate;
+          league = prediction.league;
+          prediction = prediction.prediction;
+          odds = prediction.odds;
+          confidence = prediction.confidence;
+          analysis = prediction.analysis;
+          category = prediction.category;
+          result;
+          archivedAt = Time.now();
+        };
+        matchHistory.add(predictionId, archivedMatch);
+        predictions.remove(predictionId);
+        true;
+      };
+    };
+  };
+
+  public query ({ caller }) func getMatchHistory() : async [MatchResult] {
+    let historyList = List.empty<MatchResult>();
+    for ((_, entry) in matchHistory.entries()) {
+      historyList.add(entry);
+    };
+    let sortedHistoryVar = historyList.toVarArray();
+    sortedHistoryVar.sortInPlace(MatchResult.compareByArchivedAt);
+    let sortedHistory = sortedHistoryVar.toArray();
+    sortedHistory;
+  };
+
+  public shared ({ caller }) func deleteHistoryEntry(token : Text, id : Nat) : async Bool {
+    if (not adminSessions.containsKey(token)) {
+      Runtime.trap("Admin access required");
+    };
+    if (not matchHistory.containsKey(id)) {
+      Runtime.trap("History entry not found");
+    };
+    matchHistory.remove(id);
+    true;
+  };
+
   public shared ({ caller }) func seedInitialData() : async () {
     if (predictions.size() > 0) {
       Runtime.trap("Data already seeded");
@@ -129,7 +203,7 @@ actor {
       id = 1;
       homeTeam = "Ντόρτμουντ";
       awayTeam = "Μπάγερν Μονάχου";
-      matchDate = "2026-02-28T19:30";
+      matchDate = "2026-03-01T19:30";
       league = "Bundesliga";
       prediction = "OVER 3.5";
       odds = 2.05;

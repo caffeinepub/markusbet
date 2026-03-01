@@ -2,10 +2,12 @@ import { Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import {
+  useGetMatchOfDayPredictions,
   useGetParlayPredictions,
   useGetSinglePredictions,
+  useMatchHistory,
 } from "./hooks/useQueries";
-import type { Prediction } from "./hooks/useQueries";
+import type { MatchResult, Prediction } from "./hooks/useQueries";
 
 // --- Utility helpers ---
 function getPredictionType(prediction: string): "win" | "draw" | "loss" {
@@ -66,18 +68,21 @@ interface PredictionCardProps {
   prediction: Prediction;
   index: number;
   isParlay?: boolean;
+  isMatchOfDay?: boolean;
 }
 
 function PredictionCard({
   prediction,
   index,
   isParlay = false,
+  isMatchOfDay = false,
 }: PredictionCardProps) {
   const predType = getPredictionType(prediction.prediction);
   const confidence = Number(prediction.confidence);
   const confidenceColor = getConfidenceColor(confidence);
   const confidenceLabel = getConfidenceLabel(confidence);
   const parlayAccent = "oklch(0.88 0.18 85)";
+  const matchOfDayAccent = "oklch(0.82 0.18 45)";
 
   return (
     <motion.article
@@ -90,22 +95,30 @@ function PredictionCard({
       }}
       className="glass-surface rounded-xl overflow-hidden transition-all duration-300 group"
       style={
-        isParlay
+        isMatchOfDay
           ? {
               boxShadow:
-                "0 0 0 1px oklch(0.88 0.18 85 / 0.18), 0 4px 24px oklch(0 0 0 / 0.3)",
-              border: "1px solid oklch(0.88 0.18 85 / 0.25)",
+                "0 0 0 1px oklch(0.82 0.18 45 / 0.25), 0 4px 24px oklch(0 0 0 / 0.3)",
+              border: "1px solid oklch(0.82 0.18 45 / 0.35)",
             }
-          : undefined
+          : isParlay
+            ? {
+                boxShadow:
+                  "0 0 0 1px oklch(0.88 0.18 85 / 0.18), 0 4px 24px oklch(0 0 0 / 0.3)",
+                border: "1px solid oklch(0.88 0.18 85 / 0.25)",
+              }
+            : undefined
       }
     >
       {/* Card top accent line */}
       <div
         className="h-0.5 w-full"
         style={{
-          background: isParlay
-            ? `linear-gradient(90deg, ${parlayAccent}, ${parlayAccent}88, transparent)`
-            : `linear-gradient(90deg, ${confidenceColor}, ${confidenceColor}88, transparent)`,
+          background: isMatchOfDay
+            ? `linear-gradient(90deg, ${matchOfDayAccent}, ${matchOfDayAccent}88, transparent)`
+            : isParlay
+              ? `linear-gradient(90deg, ${parlayAccent}, ${parlayAccent}88, transparent)`
+              : `linear-gradient(90deg, ${confidenceColor}, ${confidenceColor}88, transparent)`,
         }}
       />
 
@@ -145,6 +158,24 @@ function PredictionCard({
                 }}
               >
                 ΠΑΡΟΛΙ
+              </span>
+            )}
+            {isMatchOfDay && (
+              <span
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 800,
+                  fontSize: "0.65rem",
+                  letterSpacing: "0.12em",
+                  padding: "0.15rem 0.5rem",
+                  borderRadius: "0.3rem",
+                  background: "oklch(0.82 0.18 45 / 0.15)",
+                  border: "1px solid oklch(0.82 0.18 45 / 0.50)",
+                  color: "oklch(0.82 0.18 45)",
+                  textTransform: "uppercase",
+                }}
+              >
+                🔥 ΑΓΩΝΑΣ ΗΜΕΡΑΣ
               </span>
             )}
           </div>
@@ -704,7 +735,7 @@ function Footer() {
 }
 
 // --- Tab Switcher ---
-type ActiveTab = "single" | "parlay";
+type ActiveTab = "single" | "parlay" | "match_of_day" | "history";
 
 function TabSwitcher({
   active,
@@ -718,7 +749,7 @@ function TabSwitcher({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: 0.05 }}
-      className="flex items-center gap-1 mb-6"
+      className="flex items-center gap-1 mb-6 flex-wrap"
       style={{
         background: "oklch(0.14 0.018 265)",
         border: "1px solid oklch(0.26 0.025 265)",
@@ -781,6 +812,371 @@ function TabSwitcher({
       >
         🎰 ΠΑΡΟΛΙ
       </button>
+      <button
+        type="button"
+        onClick={() => onChange("match_of_day")}
+        style={{
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: "0.88rem",
+          letterSpacing: "0.10em",
+          padding: "0.5rem 1.3rem",
+          borderRadius: "0.4rem",
+          cursor: "pointer",
+          border: "none",
+          transition: "all 0.18s",
+          background:
+            active === "match_of_day"
+              ? "oklch(0.72 0.20 25 / 0.12)"
+              : "transparent",
+          color:
+            active === "match_of_day"
+              ? "oklch(0.82 0.18 45)"
+              : "oklch(0.48 0.02 265)",
+          borderBottom:
+            active === "match_of_day"
+              ? "2px solid oklch(0.82 0.18 45)"
+              : "2px solid transparent",
+        }}
+      >
+        🔥 ΑΓΩΝΑΣ ΗΜΕΡΑΣ
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("history")}
+        style={{
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: "0.88rem",
+          letterSpacing: "0.10em",
+          padding: "0.5rem 1.3rem",
+          borderRadius: "0.4rem",
+          cursor: "pointer",
+          border: "none",
+          transition: "all 0.18s",
+          background:
+            active === "history"
+              ? "oklch(0.45 0.18 230 / 0.15)"
+              : "transparent",
+          color:
+            active === "history"
+              ? "oklch(0.72 0.14 230)"
+              : "oklch(0.48 0.02 265)",
+          borderBottom:
+            active === "history"
+              ? "2px solid oklch(0.72 0.14 230)"
+              : "2px solid transparent",
+        }}
+      >
+        📊 ΙΣΤΟΡΙΚΟ
+      </button>
+    </motion.div>
+  );
+}
+
+// --- Match History Card ---
+function MatchHistoryCard({
+  entry,
+  index,
+}: {
+  entry: MatchResult;
+  index: number;
+}) {
+  function getResultBadge(result: string) {
+    const lower = result.toLowerCase();
+    if (lower === "win") {
+      return (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            background: "oklch(0.82 0.22 142 / 0.15)",
+            border: "1px solid oklch(0.82 0.22 142 / 0.50)",
+            borderRadius: "0.5rem",
+            padding: "0.3rem 0.85rem",
+            color: "oklch(0.82 0.22 142)",
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 800,
+            fontSize: "0.82rem",
+            letterSpacing: "0.08em",
+          }}
+        >
+          ✅ ΝΙΚΗ
+        </span>
+      );
+    }
+    if (lower === "loss") {
+      return (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            background: "oklch(0.65 0.22 25 / 0.12)",
+            border: "1px solid oklch(0.65 0.22 25 / 0.50)",
+            borderRadius: "0.5rem",
+            padding: "0.3rem 0.85rem",
+            color: "oklch(0.75 0.15 25)",
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 800,
+            fontSize: "0.82rem",
+            letterSpacing: "0.08em",
+          }}
+        >
+          ❌ ΑΤΥΧΙΑ
+        </span>
+      );
+    }
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          background: "oklch(0.40 0.02 265 / 0.15)",
+          border: "1px solid oklch(0.40 0.02 265 / 0.50)",
+          borderRadius: "0.5rem",
+          padding: "0.3rem 0.85rem",
+          color: "oklch(0.60 0.02 265)",
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: "0.82rem",
+          letterSpacing: "0.08em",
+        }}
+      >
+        ⬜ VOID
+      </span>
+    );
+  }
+
+  function formatMatchDate(dateStr: string): string {
+    try {
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString("el-GR", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      });
+    } catch {
+      return dateStr;
+    }
+  }
+
+  const lower = entry.result.toLowerCase();
+  const accentColor =
+    lower === "win"
+      ? "oklch(0.82 0.22 142)"
+      : lower === "loss"
+        ? "oklch(0.65 0.22 25)"
+        : "oklch(0.42 0.02 265)";
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.38,
+        delay: index * 0.07,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      style={{
+        background: "oklch(0.16 0.02 265)",
+        border: `1px solid ${accentColor}33`,
+        borderRadius: "0.75rem",
+        overflow: "hidden",
+      }}
+    >
+      {/* Accent top line */}
+      <div
+        style={{
+          height: 2,
+          background: `linear-gradient(90deg, ${accentColor}, ${accentColor}44, transparent)`,
+        }}
+      />
+      <div className="p-4 md:p-5">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          {/* Left: league + match */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 700,
+                  fontSize: "0.68rem",
+                  letterSpacing: "0.12em",
+                  padding: "0.15rem 0.55rem",
+                  borderRadius: "0.3rem",
+                  background: "oklch(0.22 0.025 265)",
+                  border: "1px solid oklch(0.32 0.03 265)",
+                  color: "oklch(0.65 0.02 265)",
+                  textTransform: "uppercase" as const,
+                }}
+              >
+                {getLeagueEmoji(entry.league)} {entry.league}
+              </span>
+              <span
+                style={{
+                  fontSize: "0.68rem",
+                  color: "oklch(0.50 0.02 265)",
+                  fontFamily: "'Barlow', sans-serif",
+                }}
+              >
+                {formatMatchDate(entry.matchDate)}
+              </span>
+            </div>
+            <p
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 700,
+                fontSize: "1.05rem",
+                color: "oklch(0.90 0.01 265)",
+                lineHeight: 1.2,
+                marginBottom: "0.5rem",
+              }}
+            >
+              {entry.homeTeam}
+              <span
+                style={{ color: "oklch(0.42 0.025 265)", margin: "0 0.4em" }}
+              >
+                vs
+              </span>
+              {entry.awayTeam}
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 700,
+                  fontSize: "0.78rem",
+                  color: "oklch(0.72 0.14 230)",
+                  background: "oklch(0.45 0.18 230 / 0.10)",
+                  border: "1px solid oklch(0.45 0.18 230 / 0.30)",
+                  borderRadius: "0.4rem",
+                  padding: "0.2rem 0.6rem",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {entry.prediction}
+              </span>
+              <span
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 700,
+                  fontSize: "0.78rem",
+                  color: "oklch(0.88 0.18 85)",
+                }}
+              >
+                @{" "}
+                {typeof entry.odds === "number"
+                  ? entry.odds.toFixed(2)
+                  : entry.odds}
+              </span>
+            </div>
+          </div>
+
+          {/* Right: result badge */}
+          <div className="flex items-center">
+            {getResultBadge(entry.result)}
+          </div>
+        </div>
+      </div>
+    </motion.article>
+  );
+}
+
+// --- History Tab Content ---
+function HistoryContent() {
+  const { data: history, isLoading, isError } = useMatchHistory();
+
+  if (isLoading) {
+    return (
+      <motion.div
+        key="history-loading"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="space-y-3"
+      >
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="h-24 rounded-xl animate-pulse"
+            style={{ background: "oklch(0.16 0.02 265)" }}
+          />
+        ))}
+      </motion.div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="rounded-xl p-10 text-center"
+        style={{
+          background: "oklch(0.16 0.02 265)",
+          border: "1px solid oklch(0.65 0.22 25 / 0.3)",
+        }}
+      >
+        <p style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>📊</p>
+        <p
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 700,
+            fontSize: "1.1rem",
+            color: "oklch(0.75 0.15 25)",
+            letterSpacing: "0.04em",
+          }}
+        >
+          ΣΦΑΛΜΑ ΦΟΡΤΩΣΗΣ
+        </p>
+      </motion.div>
+    );
+  }
+
+  if (!history || history.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="rounded-xl p-12 text-center"
+        style={{
+          background: "oklch(0.16 0.02 265)",
+          border: "1px solid oklch(0.45 0.18 230 / 0.2)",
+        }}
+      >
+        <p style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>📊</p>
+        <p
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 700,
+            fontSize: "1.1rem",
+            color: "oklch(0.72 0.14 230 / 0.7)",
+            letterSpacing: "0.04em",
+          }}
+        >
+          ΚΑΝΕΝΑ ΙΣΤΟΡΙΚΟ ΑΚΟ ΜΑ
+        </p>
+        <p
+          style={{
+            fontSize: "0.78rem",
+            color: "oklch(0.42 0.02 265)",
+            marginTop: "0.5rem",
+          }}
+        >
+          Αφού ολοκληρωθεί ένας αγώνας, αρχειοθέτησέ τον από το Admin Panel.
+        </p>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div className="space-y-3">
+      {history.map((entry: MatchResult, index: number) => (
+        <MatchHistoryCard key={String(entry.id)} entry={entry} index={index} />
+      ))}
     </motion.div>
   );
 }
@@ -791,15 +1187,19 @@ function PredictionsContent({
   isLoading,
   isError,
   isParlay,
+  isMatchOfDay,
 }: {
   predictions: Prediction[] | undefined;
   isLoading: boolean;
   isError: boolean;
   isParlay: boolean;
+  isMatchOfDay?: boolean;
 }) {
   const emptyLabel = isParlay
     ? "ΔΕΝ ΥΠΑΡΧΟΥΝ ΠΑΡΟΛΙ"
-    : "NO PREDICTIONS AVAILABLE";
+    : isMatchOfDay
+      ? "ΔΕΝ ΥΠΑΡΧΕΙ ΑΓΩΝΑΣ ΗΜΕΡΑΣ"
+      : "NO PREDICTIONS AVAILABLE";
 
   return (
     <AnimatePresence mode="wait">
@@ -856,6 +1256,7 @@ function PredictionsContent({
               prediction={prediction}
               index={index}
               isParlay={isParlay}
+              isMatchOfDay={isMatchOfDay}
             />
           ))}
         </motion.div>
@@ -869,11 +1270,13 @@ function PredictionsContent({
             background: "oklch(0.16 0.02 265)",
             border: isParlay
               ? "1px solid oklch(0.88 0.18 85 / 0.2)"
-              : "1px solid oklch(0.28 0.025 265)",
+              : isMatchOfDay
+                ? "1px solid oklch(0.82 0.18 45 / 0.2)"
+                : "1px solid oklch(0.28 0.025 265)",
           }}
         >
           <p style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>
-            {isParlay ? "🎰" : "⚽"}
+            {isParlay ? "🎰" : isMatchOfDay ? "🔥" : "⚽"}
           </p>
           <p
             style={{
@@ -882,13 +1285,15 @@ function PredictionsContent({
               fontSize: "1.1rem",
               color: isParlay
                 ? "oklch(0.88 0.18 85 / 0.7)"
-                : "oklch(0.55 0.02 265)",
+                : isMatchOfDay
+                  ? "oklch(0.82 0.18 45 / 0.7)"
+                  : "oklch(0.55 0.02 265)",
               letterSpacing: "0.04em",
             }}
           >
             {emptyLabel}
           </p>
-          {isParlay && (
+          {(isParlay || isMatchOfDay) && (
             <p
               style={{
                 fontSize: "0.75rem",
@@ -896,7 +1301,9 @@ function PredictionsContent({
                 marginTop: "0.5rem",
               }}
             >
-              Πρόσθεσε παρολί από το Admin Panel
+              {isMatchOfDay
+                ? "Πρόσθεσε τον αγώνα της ημέρας από το Admin Panel"
+                : "Πρόσθεσε παρολί από το Admin Panel"}
             </p>
           )}
         </motion.div>
@@ -1005,29 +1412,89 @@ export default function App() {
     isError: parlayError,
   } = useGetParlayPredictions();
 
+  const {
+    data: matchOfDayData,
+    isLoading: matchOfDayLoading,
+    isError: matchOfDayError,
+  } = useGetMatchOfDayPredictions();
+
   const singlePredictions: Prediction[] = singleData ?? [];
   const parlayPredictions: Prediction[] = parlayData ?? [];
+  const matchOfDayPredictions: Prediction[] = matchOfDayData ?? [];
 
-  // Apply today filter
+  const isHistoryTab = activeTab === "history";
+
+  // Apply today filter (not relevant for history tab)
   const filteredSingle = todayOnly
     ? singlePredictions.filter((p) => isMatchToday(p.matchDate))
     : singlePredictions;
   const filteredParlay = todayOnly
     ? parlayPredictions.filter((p) => isMatchToday(p.matchDate))
     : parlayPredictions;
+  const filteredMatchOfDay = todayOnly
+    ? matchOfDayPredictions.filter((p) => isMatchToday(p.matchDate))
+    : matchOfDayPredictions;
 
   const activePredictions =
-    activeTab === "single" ? filteredSingle : filteredParlay;
-  const isLoading = activeTab === "single" ? singleLoading : parlayLoading;
-  const isError = activeTab === "single" ? singleError : parlayError;
+    activeTab === "single"
+      ? filteredSingle
+      : activeTab === "parlay"
+        ? filteredParlay
+        : filteredMatchOfDay;
+  const isLoading =
+    activeTab === "single"
+      ? singleLoading
+      : activeTab === "parlay"
+        ? parlayLoading
+        : matchOfDayLoading;
+  const isError =
+    activeTab === "single"
+      ? singleError
+      : activeTab === "parlay"
+        ? parlayError
+        : matchOfDayError;
 
   // Determine empty state type: todayOnly with no results vs genuinely empty
   const hasPredictionsAtAll =
     activeTab === "single"
       ? singlePredictions.length > 0
-      : parlayPredictions.length > 0;
+      : activeTab === "parlay"
+        ? parlayPredictions.length > 0
+        : matchOfDayPredictions.length > 0;
   const emptyBecauseFilter =
-    todayOnly && hasPredictionsAtAll && activePredictions.length === 0;
+    !isHistoryTab &&
+    todayOnly &&
+    hasPredictionsAtAll &&
+    activePredictions.length === 0;
+
+  // Section title derivation
+  const sectionTitle = isHistoryTab
+    ? "ΙΣΤΟΡΙΚΟ ΑΓΩΝΩΝ"
+    : activeTab === "parlay"
+      ? "ΠΑΡΟΛΙ"
+      : activeTab === "match_of_day"
+        ? "ΑΓΩΝΑΣ ΤΗΣ ΗΜΕΡΑΣ"
+        : todayOnly
+          ? "ΣΗΜΕΡΙΝΕΣ ΠΡΟΒΛΕΨΕΙΣ"
+          : "ΟΛΕΣ ΟΙ ΠΡΟΒΛΕΨΕΙΣ";
+
+  const sectionSubtitle = isHistoryTab
+    ? "Αρχειοθετημένες προβλέψεις με αποτελέσματα"
+    : activeTab === "parlay"
+      ? "Συνδυαστικές προβλέψεις"
+      : activeTab === "match_of_day"
+        ? "Η κορυφαία επιλογή της ημέρας"
+        : todayOnly
+          ? "Προβλέψεις για σήμερα"
+          : "Expertly curated football tips";
+
+  const accentGradient = isHistoryTab
+    ? "linear-gradient(180deg, oklch(0.72 0.14 230), oklch(0.55 0.12 230))"
+    : activeTab === "parlay"
+      ? "linear-gradient(180deg, oklch(0.88 0.18 85), oklch(0.75 0.16 85))"
+      : activeTab === "match_of_day"
+        ? "linear-gradient(180deg, oklch(0.82 0.18 45), oklch(0.70 0.16 25))"
+        : "linear-gradient(180deg, oklch(0.82 0.22 142), oklch(0.70 0.20 160))";
 
   return (
     <div
@@ -1047,10 +1514,7 @@ export default function App() {
             style={{
               width: 3,
               height: 28,
-              background:
-                activeTab === "parlay"
-                  ? "linear-gradient(180deg, oklch(0.88 0.18 85), oklch(0.75 0.16 85))"
-                  : "linear-gradient(180deg, oklch(0.82 0.22 142), oklch(0.70 0.20 160))",
+              background: accentGradient,
               borderRadius: 2,
               flexShrink: 0,
               transition: "background 0.3s",
@@ -1067,11 +1531,7 @@ export default function App() {
                 lineHeight: 1,
               }}
             >
-              {activeTab === "parlay"
-                ? "ΠΑΡΟΛΙ"
-                : todayOnly
-                  ? "ΣΗΜΕΡΙΝΕΣ ΠΡΟΒΛΕΨΕΙΣ"
-                  : "ΟΛΕΣ ΟΙ ΠΡΟΒΛΕΨΕΙΣ"}
+              {sectionTitle}
             </h2>
             <p
               style={{
@@ -1081,11 +1541,7 @@ export default function App() {
                 marginTop: 2,
               }}
             >
-              {activeTab === "parlay"
-                ? "Συνδυαστικές προβλέψεις"
-                : todayOnly
-                  ? "Προβλέψεις για σήμερα"
-                  : "Expertly curated football tips"}
+              {sectionSubtitle}
             </p>
           </div>
         </motion.div>
@@ -1093,11 +1549,13 @@ export default function App() {
         {/* Tab Switcher */}
         <TabSwitcher active={activeTab} onChange={setActiveTab} />
 
-        {/* Date filter toggle */}
-        <DateFilterToggle todayOnly={todayOnly} onChange={setTodayOnly} />
+        {/* Date filter toggle - hidden on history tab */}
+        {!isHistoryTab && (
+          <DateFilterToggle todayOnly={todayOnly} onChange={setTodayOnly} />
+        )}
 
-        {/* Stats bar */}
-        {!isLoading && activePredictions.length > 0 && (
+        {/* Stats bar - hidden on history tab */}
+        {!isHistoryTab && !isLoading && activePredictions.length > 0 && (
           <StatsBar predictions={activePredictions} />
         )}
 
@@ -1110,7 +1568,9 @@ export default function App() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.25 }}
           >
-            {emptyBecauseFilter ? (
+            {isHistoryTab ? (
+              <HistoryContent />
+            ) : emptyBecauseFilter ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -1120,7 +1580,9 @@ export default function App() {
                   border:
                     activeTab === "parlay"
                       ? "1px solid oklch(0.88 0.18 85 / 0.2)"
-                      : "1px solid oklch(0.28 0.025 265)",
+                      : activeTab === "match_of_day"
+                        ? "1px solid oklch(0.82 0.18 45 / 0.2)"
+                        : "1px solid oklch(0.28 0.025 265)",
                 }}
               >
                 <p style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>📅</p>
@@ -1171,6 +1633,7 @@ export default function App() {
                 isLoading={isLoading}
                 isError={isError}
                 isParlay={activeTab === "parlay"}
+                isMatchOfDay={activeTab === "match_of_day"}
               />
             )}
           </motion.div>

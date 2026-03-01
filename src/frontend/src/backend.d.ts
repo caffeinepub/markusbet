@@ -11,6 +11,20 @@ export interface TransformationInput {
     context: Uint8Array;
     response: http_request_result;
 }
+export interface MatchResult {
+    id: bigint;
+    result: string;
+    prediction: string;
+    homeTeam: string;
+    odds: number;
+    league: string;
+    awayTeam: string;
+    category: string;
+    confidence: bigint;
+    analysis: string;
+    matchDate: string;
+    archivedAt: bigint;
+}
 export interface TransformationOutput {
     status: bigint;
     body: Uint8Array;
@@ -41,9 +55,12 @@ export interface backendInterface {
     addPredictionAsAdmin(token: string, homeTeam: string, awayTeam: string, matchDate: string, league: string, predictionType: string, odds: number, confidence: bigint, analysis: string, category: string): Promise<bigint | null>;
     adminLogin(password: string): Promise<string | null>;
     adminLogout(token: string): Promise<boolean>;
+    archivePrediction(token: string, predictionId: bigint, result: string): Promise<boolean>;
+    deleteHistoryEntry(token: string, id: bigint): Promise<boolean>;
     deletePredictionAsAdmin(token: string, id: bigint): Promise<boolean>;
     fetchFootballMatches(token: string): Promise<string>;
     fetchMatchesByCompetition(token: string, competitionCode: string): Promise<string>;
+    getMatchHistory(): Promise<Array<MatchResult>>;
     getPredictions(): Promise<Array<Prediction>>;
     isAdminAuthenticated(token: string): Promise<boolean>;
     seedInitialData(): Promise<void>;

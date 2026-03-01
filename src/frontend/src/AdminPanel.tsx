@@ -25,11 +25,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@tanstack/react-router";
 import {
   AlertCircle,
+  Archive,
   ArrowLeft,
   Calendar,
+  CheckCircle2,
   Download,
   Eye,
   EyeOff,
+  History,
   Loader2,
   LogOut,
   Pencil,
@@ -38,6 +41,7 @@ import {
   ShieldCheck,
   Trash2,
   Trophy,
+  XCircle,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
@@ -46,13 +50,16 @@ import {
   useAddPrediction,
   useAdminLogin,
   useAdminLogout,
+  useArchivePrediction,
+  useDeleteHistoryEntry,
   useDeletePrediction,
   useFetchMatchesByCompetition,
   useIsAdminAuthenticated,
+  useMatchHistory,
   usePredictions,
   useUpdatePrediction,
 } from "./hooks/useQueries";
-import type { Prediction } from "./hooks/useQueries";
+import type { MatchResult, Prediction } from "./hooks/useQueries";
 
 // ---- Football API types ----
 interface FootballMatch {
@@ -151,7 +158,9 @@ function PredictionFormDialog({
   prefillData,
 }: PredictionFormDialogProps) {
   const [form, setForm] = useState<PredictionForm>(EMPTY_FORM);
-  const [category, setCategory] = useState<"single" | "parlay">("single");
+  const [category, setCategory] = useState<
+    "single" | "parlay" | "match_of_day"
+  >("single");
   const addMutation = useAddPrediction();
   const updateMutation = useUpdatePrediction();
 
@@ -159,10 +168,13 @@ function PredictionFormDialog({
     if (open) {
       if (editTarget) {
         setForm(formFromPrediction(editTarget));
+        const cat = editTarget.category as string;
         setCategory(
-          (editTarget.category as "single" | "parlay") === "parlay"
+          cat === "parlay"
             ? "parlay"
-            : "single",
+            : cat === "match_of_day"
+              ? "match_of_day"
+              : "single",
         );
       } else if (prefillData) {
         setForm({ ...EMPTY_FORM, ...prefillData });
@@ -369,6 +381,35 @@ function PredictionFormDialog({
                 }}
               >
                 🎰 ΠΑΡΟΛΙ
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategory("match_of_day")}
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 700,
+                  fontSize: "0.78rem",
+                  letterSpacing: "0.08em",
+                  padding: "0.4rem 1rem",
+                  borderRadius: "0.35rem",
+                  cursor: "pointer",
+                  border: "none",
+                  transition: "all 0.15s",
+                  background:
+                    category === "match_of_day"
+                      ? "oklch(0.82 0.18 45 / 0.15)"
+                      : "transparent",
+                  color:
+                    category === "match_of_day"
+                      ? "oklch(0.82 0.18 45)"
+                      : "oklch(0.50 0.02 265)",
+                  boxShadow:
+                    category === "match_of_day"
+                      ? "0 0 0 1px oklch(0.82 0.18 45 / 0.40)"
+                      : "none",
+                }}
+              >
+                🔥 ΑΓΩΝΑΣ ΗΜΕΡΑΣ
               </button>
             </div>
           </div>
@@ -614,6 +655,634 @@ function DeleteDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+// ---- Archive Result Dialog ----
+interface ArchiveDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (result: "win" | "loss" | "void") => void;
+  isPending: boolean;
+  predictionLabel: string;
+}
+
+function ArchiveDialog({
+  open,
+  onClose,
+  onConfirm,
+  isPending,
+  predictionLabel,
+}: ArchiveDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent
+        style={{
+          background: "oklch(0.13 0.02 265)",
+          border: "1px solid oklch(0.45 0.18 230 / 0.4)",
+          maxWidth: "28rem",
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle
+            style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 800,
+              fontSize: "1.2rem",
+              letterSpacing: "0.04em",
+              color: "oklch(0.96 0.01 265)",
+            }}
+          >
+            ΑΡΧΕΙΟΘΕΤΗΣΗ ΑΓΩΝΑ
+          </DialogTitle>
+          <DialogDescription
+            style={{ color: "oklch(0.55 0.02 265)", fontSize: "0.82rem" }}
+          >
+            Τι ήταν το αποτέλεσμα για:{" "}
+            <strong style={{ color: "oklch(0.72 0.14 230)" }}>
+              {predictionLabel}
+            </strong>
+            ?
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex gap-2 pt-2 justify-center flex-wrap">
+          <button
+            type="button"
+            onClick={() => onConfirm("win")}
+            disabled={isPending}
+            style={{
+              background: "oklch(0.82 0.22 142 / 0.15)",
+              border: "1px solid oklch(0.82 0.22 142 / 0.50)",
+              borderRadius: "0.5rem",
+              padding: "0.65rem 1.4rem",
+              color: "oklch(0.82 0.22 142)",
+              cursor: isPending ? "not-allowed" : "pointer",
+              opacity: isPending ? 0.6 : 1,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 800,
+              fontSize: "0.90rem",
+              letterSpacing: "0.08em",
+              transition: "all 0.15s",
+            }}
+          >
+            {isPending ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <CheckCircle2 size={15} />
+            )}
+            ✅ ΝΙΚΗ
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm("loss")}
+            disabled={isPending}
+            style={{
+              background: "oklch(0.65 0.22 25 / 0.12)",
+              border: "1px solid oklch(0.65 0.22 25 / 0.50)",
+              borderRadius: "0.5rem",
+              padding: "0.65rem 1.4rem",
+              color: "oklch(0.75 0.15 25)",
+              cursor: isPending ? "not-allowed" : "pointer",
+              opacity: isPending ? 0.6 : 1,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 800,
+              fontSize: "0.90rem",
+              letterSpacing: "0.08em",
+              transition: "all 0.15s",
+            }}
+          >
+            {isPending ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <XCircle size={15} />
+            )}
+            ❌ ΑΠΟΤΥΧΙΑ
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm("void")}
+            disabled={isPending}
+            style={{
+              background: "oklch(0.45 0.02 265 / 0.15)",
+              border: "1px solid oklch(0.45 0.02 265 / 0.50)",
+              borderRadius: "0.5rem",
+              padding: "0.65rem 1.4rem",
+              color: "oklch(0.65 0.02 265)",
+              cursor: isPending ? "not-allowed" : "pointer",
+              opacity: isPending ? 0.6 : 1,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 800,
+              fontSize: "0.90rem",
+              letterSpacing: "0.08em",
+              transition: "all 0.15s",
+            }}
+          >
+            ⬜ VOID
+          </button>
+        </div>
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "1px solid oklch(0.30 0.025 265)",
+              borderRadius: "0.4rem",
+              padding: "0.45rem 1rem",
+              color: "oklch(0.55 0.02 265)",
+              cursor: "pointer",
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 600,
+              fontSize: "0.78rem",
+              letterSpacing: "0.05em",
+            }}
+          >
+            ΑΚΥΡΩΣΗ
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---- History Tab ----
+function HistoryTab({ token }: { token: string }) {
+  const { data: history, isLoading } = useMatchHistory();
+  const deleteHistoryMutation = useDeleteHistoryEntry();
+  const [deleteTargetId, setDeleteTargetId] = useState<bigint | null>(null);
+
+  async function handleDeleteHistory(id: bigint) {
+    try {
+      const ok = await deleteHistoryMutation.mutateAsync({ token, id });
+      if (ok) {
+        toast.success("Εγγραφή διαγράφηκε.");
+      } else {
+        toast.error("Αποτυχία διαγραφής.");
+      }
+    } catch {
+      toast.error("Σφάλμα. Δοκιμάστε ξανά.");
+    } finally {
+      setDeleteTargetId(null);
+    }
+  }
+
+  function getResultBadge(result: string) {
+    const lower = result.toLowerCase();
+    if (lower === "win") {
+      return (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            background: "oklch(0.82 0.22 142 / 0.15)",
+            border: "1px solid oklch(0.82 0.22 142 / 0.45)",
+            borderRadius: "0.4rem",
+            padding: "0.2rem 0.6rem",
+            color: "oklch(0.82 0.22 142)",
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 800,
+            fontSize: "0.68rem",
+            letterSpacing: "0.08em",
+            whiteSpace: "nowrap" as const,
+          }}
+        >
+          ✅ ΝΙΚΗ
+        </span>
+      );
+    }
+    if (lower === "loss") {
+      return (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            background: "oklch(0.65 0.22 25 / 0.12)",
+            border: "1px solid oklch(0.65 0.22 25 / 0.45)",
+            borderRadius: "0.4rem",
+            padding: "0.2rem 0.6rem",
+            color: "oklch(0.75 0.15 25)",
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 800,
+            fontSize: "0.68rem",
+            letterSpacing: "0.08em",
+            whiteSpace: "nowrap" as const,
+          }}
+        >
+          ❌ ΑΠΟΤΥΧΙΑ
+        </span>
+      );
+    }
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          background: "oklch(0.40 0.02 265 / 0.15)",
+          border: "1px solid oklch(0.40 0.02 265 / 0.45)",
+          borderRadius: "0.4rem",
+          padding: "0.2rem 0.6rem",
+          color: "oklch(0.60 0.02 265)",
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: "0.68rem",
+          letterSpacing: "0.08em",
+          whiteSpace: "nowrap" as const,
+        }}
+      >
+        ⬜ VOID
+      </span>
+    );
+  }
+
+  function formatArchivedDate(ts: bigint): string {
+    try {
+      const ms = Number(ts) / 1_000_000;
+      const d = new Date(ms);
+      if (Number.isNaN(d.getTime())) return "—";
+      return d.toLocaleDateString("el-GR", {
+        day: "numeric",
+        month: "short",
+        year: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "—";
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 800,
+            fontSize: "1.2rem",
+            letterSpacing: "0.04em",
+            color: "oklch(0.95 0.01 265)",
+            lineHeight: 1,
+          }}
+        >
+          ΙΣΤΟΡΙΚΟ ΑΓΩΝΩΝ
+        </h3>
+        <p
+          style={{
+            fontSize: "0.70rem",
+            color: "oklch(0.45 0.02 265)",
+            marginTop: 3,
+          }}
+        >
+          Αρχειοθετημένες προβλέψεις με αποτελέσματα.
+        </p>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="h-16 rounded-lg animate-pulse"
+              style={{ background: "oklch(0.18 0.022 265)" }}
+            />
+          ))}
+        </div>
+      ) : !history || history.length === 0 ? (
+        <div
+          style={{
+            background: "oklch(0.16 0.02 265)",
+            border: "1px dashed oklch(0.30 0.025 265)",
+            borderRadius: "0.75rem",
+            padding: "3rem",
+            textAlign: "center",
+          }}
+        >
+          <History
+            size={28}
+            style={{
+              color: "oklch(0.35 0.02 265)",
+              margin: "0 auto 0.85rem",
+            }}
+          />
+          <p
+            style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 700,
+              fontSize: "0.95rem",
+              letterSpacing: "0.06em",
+              color: "oklch(0.48 0.02 265)",
+            }}
+          >
+            ΚΑΝΕΝΑ ΑΡΧΕΙΟ ΑΚΟ ΜΑ
+          </p>
+          <p
+            style={{
+              fontSize: "0.72rem",
+              color: "oklch(0.36 0.02 265)",
+              marginTop: 6,
+            }}
+          >
+            Πάτα το κουμπί "ARCHIVE" σε μια πρόβλεψη για να την αρχειοθετήσεις.
+          </p>
+        </div>
+      ) : (
+        <div
+          style={{
+            background: "oklch(0.16 0.02 265)",
+            border: "1px solid oklch(0.28 0.025 265)",
+            borderRadius: "0.75rem",
+            overflow: "hidden",
+          }}
+        >
+          <div className="overflow-x-auto">
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr
+                  style={{
+                    borderBottom: "1px solid oklch(0.24 0.025 265)",
+                    background: "oklch(0.14 0.018 265)",
+                  }}
+                >
+                  {[
+                    {
+                      label: "Αγώνας",
+                      align: "left" as const,
+                      pad: "0.75rem 1rem",
+                    },
+                    {
+                      label: "Πρωτάθλημα",
+                      align: "left" as const,
+                      pad: "0.75rem 0.75rem",
+                    },
+                    {
+                      label: "Πρόβλεψη",
+                      align: "left" as const,
+                      pad: "0.75rem 0.75rem",
+                    },
+                    {
+                      label: "Odds",
+                      align: "center" as const,
+                      pad: "0.75rem 0.75rem",
+                    },
+                    {
+                      label: "Αποτέλεσμα",
+                      align: "center" as const,
+                      pad: "0.75rem 0.75rem",
+                    },
+                    {
+                      label: "Ημ/νία",
+                      align: "left" as const,
+                      pad: "0.75rem 0.75rem",
+                    },
+                    { label: "", align: "right" as const, pad: "0.75rem 1rem" },
+                  ].map((col) => (
+                    <th
+                      key={col.label}
+                      style={{
+                        fontFamily: "'Barlow Condensed', sans-serif",
+                        fontWeight: 700,
+                        fontSize: "0.70rem",
+                        letterSpacing: "0.1em",
+                        color: "oklch(0.50 0.02 265)",
+                        textTransform: "uppercase",
+                        paddingBottom: "0.75rem",
+                        padding: col.pad,
+                        textAlign: col.align,
+                      }}
+                    >
+                      {col.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence>
+                  {history.map((entry: MatchResult, i: number) => (
+                    <motion.tr
+                      key={String(entry.id)}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 8 }}
+                      transition={{ duration: 0.22, delay: i * 0.03 }}
+                      style={{
+                        borderBottom: "1px solid oklch(0.22 0.02 265)",
+                      }}
+                      className="hover:bg-[oklch(0.18_0.02_265)] transition-colors"
+                    >
+                      <td style={{ padding: "0.85rem 1rem" }}>
+                        <div
+                          style={{
+                            fontFamily: "'Barlow Condensed', sans-serif",
+                            fontWeight: 700,
+                            fontSize: "0.90rem",
+                            color: "oklch(0.92 0.01 265)",
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {entry.homeTeam}
+                          <span
+                            style={{
+                              color: "oklch(0.40 0.025 265)",
+                              margin: "0 0.3em",
+                            }}
+                          >
+                            vs
+                          </span>
+                          {entry.awayTeam}
+                        </div>
+                      </td>
+                      <td style={{ padding: "0.85rem 0.75rem" }}>
+                        <span
+                          style={{
+                            fontSize: "0.72rem",
+                            fontWeight: 600,
+                            color: "oklch(0.60 0.02 265)",
+                            background: "oklch(0.20 0.025 265)",
+                            padding: "0.2rem 0.5rem",
+                            borderRadius: "0.35rem",
+                            border: "1px solid oklch(0.28 0.025 265)",
+                            fontFamily: "'Barlow Condensed', sans-serif",
+                            letterSpacing: "0.04em",
+                            whiteSpace: "nowrap" as const,
+                          }}
+                        >
+                          {entry.league}
+                        </span>
+                      </td>
+                      <td style={{ padding: "0.85rem 0.75rem" }}>
+                        <span
+                          style={{
+                            fontFamily: "'Barlow Condensed', sans-serif",
+                            fontWeight: 700,
+                            fontSize: "0.82rem",
+                            color: "oklch(0.72 0.14 230)",
+                            letterSpacing: "0.04em",
+                          }}
+                        >
+                          {entry.prediction}
+                        </span>
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.85rem 0.75rem",
+                          textAlign: "center",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: "'Barlow Condensed', sans-serif",
+                            fontWeight: 700,
+                            fontSize: "0.88rem",
+                            color: "oklch(0.88 0.18 85)",
+                          }}
+                        >
+                          {typeof entry.odds === "number"
+                            ? entry.odds.toFixed(2)
+                            : entry.odds}
+                        </span>
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.85rem 0.75rem",
+                          textAlign: "center",
+                        }}
+                      >
+                        {getResultBadge(entry.result)}
+                      </td>
+                      <td style={{ padding: "0.85rem 0.75rem" }}>
+                        <span
+                          style={{
+                            fontSize: "0.72rem",
+                            color: "oklch(0.52 0.02 265)",
+                            fontFamily: "'Barlow', sans-serif",
+                            whiteSpace: "nowrap" as const,
+                          }}
+                        >
+                          {formatArchivedDate(entry.archivedAt)}
+                        </span>
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.85rem 1rem",
+                          textAlign: "right",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTargetId(entry.id)}
+                          disabled={
+                            deleteHistoryMutation.isPending &&
+                            deleteTargetId === entry.id
+                          }
+                          style={{
+                            background: "oklch(0.65 0.22 25 / 0.1)",
+                            border: "1px solid oklch(0.65 0.22 25 / 0.35)",
+                            borderRadius: "0.4rem",
+                            padding: "0.3rem 0.6rem",
+                            color: "oklch(0.75 0.15 25)",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                            fontSize: "0.70rem",
+                            fontFamily: "'Barlow Condensed', sans-serif",
+                            fontWeight: 700,
+                            letterSpacing: "0.05em",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          {deleteHistoryMutation.isPending &&
+                          deleteTargetId === entry.id ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={12} />
+                          )}
+                          DEL
+                        </button>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Delete history confirm */}
+      <AlertDialog
+        open={deleteTargetId !== null}
+        onOpenChange={(v) => !v && setDeleteTargetId(null)}
+      >
+        <AlertDialogContent
+          style={{
+            background: "oklch(0.13 0.02 265)",
+            border: "1px solid oklch(0.65 0.22 25 / 0.4)",
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 800,
+                fontSize: "1.2rem",
+                letterSpacing: "0.04em",
+                color: "oklch(0.96 0.01 265)",
+              }}
+            >
+              ΔΙΑΓΡΑΦΗ ΕΓΓΡΑΦΗΣ;
+            </AlertDialogTitle>
+            <AlertDialogDescription
+              style={{ color: "oklch(0.55 0.02 265)", fontSize: "0.82rem" }}
+            >
+              Η εγγραφή θα αφαιρεθεί από το ιστορικό οριστικά.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => setDeleteTargetId(null)}
+              style={{
+                background: "transparent",
+                border: "1px solid oklch(0.30 0.025 265)",
+                color: "oklch(0.65 0.02 265)",
+              }}
+            >
+              Ακύρωση
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                deleteTargetId !== null && handleDeleteHistory(deleteTargetId)
+              }
+              disabled={deleteHistoryMutation.isPending}
+              style={{
+                background: "oklch(0.55 0.22 25)",
+                color: "oklch(0.98 0 0)",
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 700,
+                letterSpacing: "0.05em",
+              }}
+            >
+              {deleteHistoryMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              ΔΙΑΓΡΑΦΗ
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 
@@ -1491,15 +2160,17 @@ function AdminDashboard({
   const logoutMutation = useAdminLogout();
   const deleteMutation = useDeletePrediction();
 
-  const [activeTab, setActiveTab] = useState<"predictions" | "import">(
-    "predictions",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "predictions" | "import" | "history"
+  >("predictions");
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Prediction | null>(null);
   const [prefillData, setPrefillData] = useState<
     Partial<PredictionForm> | undefined
   >(undefined);
   const [deleteTarget, setDeleteTarget] = useState<Prediction | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<Prediction | null>(null);
+  const archiveMutation = useArchivePrediction();
 
   async function handleLogout() {
     await logoutMutation.mutateAsync(token).catch(() => {});
@@ -1543,6 +2214,26 @@ function AdminDashboard({
       toast.error("An error occurred.");
     } finally {
       setDeleteTarget(null);
+    }
+  }
+
+  async function handleArchive(result: "win" | "loss" | "void") {
+    if (!archiveTarget) return;
+    try {
+      const ok = await archiveMutation.mutateAsync({
+        token,
+        id: archiveTarget.id,
+        result,
+      });
+      if (ok) {
+        const labels = { win: "ΝΙΚΗ ✅", loss: "ΑΠΟΤΥΧΙΑ ❌", void: "VOID ⬜" };
+        toast.success(`Αρχειοθετήθηκε ως ${labels[result]}`);
+        setArchiveTarget(null);
+      } else {
+        toast.error("Αποτυχία αρχειοθέτησης.");
+      }
+    } catch {
+      toast.error("Σφάλμα. Δοκιμάστε ξανά.");
     }
   }
 
@@ -1752,11 +2443,42 @@ function AdminDashboard({
           >
             📥 IMPORT MATCHES
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("history")}
+            style={{
+              ...tabBtnStyle(false),
+              background:
+                activeTab === "history"
+                  ? "oklch(0.45 0.18 230 / 0.18)"
+                  : "transparent",
+              color:
+                activeTab === "history"
+                  ? "oklch(0.72 0.14 230)"
+                  : "oklch(0.48 0.02 265)",
+              borderBottom:
+                activeTab === "history"
+                  ? "2px solid oklch(0.72 0.14 230)"
+                  : "2px solid transparent",
+            }}
+          >
+            📊 ΙΣΤΟΡΙΚΟ
+          </button>
         </motion.div>
 
         {/* Tab content */}
         <AnimatePresence mode="wait">
-          {activeTab === "predictions" ? (
+          {activeTab === "history" ? (
+            <motion.div
+              key="history"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+            >
+              <HistoryTab token={token} />
+            </motion.div>
+          ) : activeTab === "predictions" ? (
             <motion.div
               key="predictions"
               initial={{ opacity: 0, y: 8 }}
@@ -1991,6 +2713,25 @@ function AdminDashboard({
                                   >
                                     🎰 ΠΑΡΟΛΙ
                                   </span>
+                                ) : p.category === "match_of_day" ? (
+                                  <span
+                                    style={{
+                                      fontFamily:
+                                        "'Barlow Condensed', sans-serif",
+                                      fontWeight: 800,
+                                      fontSize: "0.65rem",
+                                      letterSpacing: "0.10em",
+                                      padding: "0.2rem 0.55rem",
+                                      borderRadius: "0.3rem",
+                                      background: "oklch(0.82 0.18 45 / 0.15)",
+                                      border:
+                                        "1px solid oklch(0.82 0.18 45 / 0.45)",
+                                      color: "oklch(0.82 0.18 45)",
+                                      whiteSpace: "nowrap" as const,
+                                    }}
+                                  >
+                                    🔥 ΑΓΩΝΑΣ ΗΜΕΡΑΣ
+                                  </span>
                                 ) : (
                                   <span
                                     style={{
@@ -2088,7 +2829,7 @@ function AdminDashboard({
                                   textAlign: "right",
                                 }}
                               >
-                                <div className="flex items-center justify-end gap-2">
+                                <div className="flex items-center justify-end gap-1.5">
                                   <button
                                     type="button"
                                     onClick={() => openEdit(p)}
@@ -2124,6 +2865,43 @@ function AdminDashboard({
                                   >
                                     <Pencil size={12} />
                                     EDIT
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setArchiveTarget(p)}
+                                    style={{
+                                      background: "oklch(0.45 0.18 230 / 0.1)",
+                                      border:
+                                        "1px solid oklch(0.45 0.18 230 / 0.35)",
+                                      borderRadius: "0.4rem",
+                                      padding: "0.3rem 0.6rem",
+                                      color: "oklch(0.72 0.14 230)",
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      fontSize: "0.70rem",
+                                      fontFamily:
+                                        "'Barlow Condensed', sans-serif",
+                                      fontWeight: 700,
+                                      letterSpacing: "0.05em",
+                                      transition: "all 0.15s",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      (
+                                        e.currentTarget as HTMLButtonElement
+                                      ).style.background =
+                                        "oklch(0.45 0.18 230 / 0.2)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      (
+                                        e.currentTarget as HTMLButtonElement
+                                      ).style.background =
+                                        "oklch(0.45 0.18 230 / 0.1)";
+                                    }}
+                                  >
+                                    <Archive size={12} />
+                                    ARCHIVE
                                   </button>
                                   <button
                                     type="button"
@@ -2224,6 +3002,17 @@ function AdminDashboard({
         predictionLabel={
           deleteTarget
             ? `${deleteTarget.homeTeam} vs ${deleteTarget.awayTeam}`
+            : ""
+        }
+      />
+      <ArchiveDialog
+        open={!!archiveTarget}
+        onClose={() => setArchiveTarget(null)}
+        onConfirm={handleArchive}
+        isPending={archiveMutation.isPending}
+        predictionLabel={
+          archiveTarget
+            ? `${archiveTarget.homeTeam} vs ${archiveTarget.awayTeam}`
             : ""
         }
       />

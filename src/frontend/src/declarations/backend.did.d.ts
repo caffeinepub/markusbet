@@ -10,6 +10,20 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface MatchResult {
+  'id' : bigint,
+  'result' : string,
+  'prediction' : string,
+  'homeTeam' : string,
+  'odds' : number,
+  'league' : string,
+  'awayTeam' : string,
+  'category' : string,
+  'confidence' : bigint,
+  'analysis' : string,
+  'matchDate' : string,
+  'archivedAt' : bigint,
+}
 export interface Prediction {
   'id' : bigint,
   'prediction' : string,
@@ -55,9 +69,12 @@ export interface _SERVICE {
   >,
   'adminLogin' : ActorMethod<[string], [] | [string]>,
   'adminLogout' : ActorMethod<[string], boolean>,
+  'archivePrediction' : ActorMethod<[string, bigint, string], boolean>,
+  'deleteHistoryEntry' : ActorMethod<[string, bigint], boolean>,
   'deletePredictionAsAdmin' : ActorMethod<[string, bigint], boolean>,
   'fetchFootballMatches' : ActorMethod<[string], string>,
   'fetchMatchesByCompetition' : ActorMethod<[string, string], string>,
+  'getMatchHistory' : ActorMethod<[], Array<MatchResult>>,
   'getPredictions' : ActorMethod<[], Array<Prediction>>,
   'isAdminAuthenticated' : ActorMethod<[string], boolean>,
   'seedInitialData' : ActorMethod<[], undefined>,
