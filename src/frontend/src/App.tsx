@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useGetMatchOfDayPredictions,
   useGetParlayPredictions,
@@ -8,6 +8,232 @@ import {
   useMatchHistory,
 } from "./hooks/useQueries";
 import type { MatchResult, Prediction } from "./hooks/useQueries";
+
+// --- HOT Badge ---
+function HotBadge() {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.25rem",
+        background: "oklch(0.65 0.22 25 / 0.18)",
+        border: "1px solid oklch(0.72 0.22 25 / 0.65)",
+        borderRadius: "0.35rem",
+        padding: "0.18rem 0.55rem",
+        color: "oklch(0.88 0.20 35)",
+        fontFamily: "'Barlow Condensed', sans-serif",
+        fontWeight: 900,
+        fontSize: "0.68rem",
+        letterSpacing: "0.12em",
+        textTransform: "uppercase" as const,
+        animation: "hot-pulse 1.8s ease-in-out infinite",
+        boxShadow: "0 0 8px oklch(0.72 0.22 25 / 0.35)",
+      }}
+    >
+      🔥 HOT
+    </span>
+  );
+}
+
+// --- History Stats Banner ---
+function HistoryStatsBanner({ history }: { history: MatchResult[] }) {
+  if (!history || history.length === 0) return null;
+  const wins = history.filter((h) => h.result.toLowerCase() === "win").length;
+  const losses = history.filter(
+    (h) => h.result.toLowerCase() === "loss",
+  ).length;
+  const voids = history.filter((h) => h.result.toLowerCase() === "void").length;
+  const total = wins + losses; // voids don't count for %
+  const winPct = total > 0 ? Math.round((wins / total) * 100) : 0;
+  const recentEntries = [...history].slice(0, 8);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.08 }}
+      className="mb-5 rounded-xl overflow-hidden"
+      style={{
+        background: "oklch(0.15 0.02 265)",
+        border: "1px solid oklch(0.28 0.025 265)",
+      }}
+    >
+      {/* Top accent */}
+      <div
+        style={{
+          height: 2,
+          background:
+            "linear-gradient(90deg, oklch(0.82 0.22 142), oklch(0.88 0.18 85 / 0.3), transparent)",
+        }}
+      />
+      <div className="px-4 py-3 flex items-center gap-4 flex-wrap">
+        {/* Win rate */}
+        <div className="flex items-center gap-2">
+          <span
+            style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 900,
+              fontSize: "1.6rem",
+              lineHeight: 1,
+              color:
+                winPct >= 60
+                  ? "oklch(0.82 0.22 142)"
+                  : winPct >= 40
+                    ? "oklch(0.82 0.18 85)"
+                    : "oklch(0.72 0.18 25)",
+            }}
+          >
+            {winPct}%
+          </span>
+          <span
+            style={{
+              fontSize: "0.62rem",
+              fontWeight: 700,
+              letterSpacing: "0.10em",
+              color: "oklch(0.45 0.02 265)",
+              fontFamily: "'Barlow Condensed', sans-serif",
+              lineHeight: 1.2,
+            }}
+          >
+            ΠΟΣΟΣΤΟ
+            <br />
+            ΕΠΙΤΥΧΙΑΣ
+          </span>
+        </div>
+
+        {/* Divider */}
+        <div
+          style={{
+            width: 1,
+            height: 32,
+            background: "oklch(0.26 0.025 265)",
+            flexShrink: 0,
+          }}
+        />
+
+        {/* WIN count */}
+        <div className="flex items-center gap-1.5">
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              background: "oklch(0.82 0.22 142 / 0.15)",
+              border: "1px solid oklch(0.82 0.22 142 / 0.45)",
+              borderRadius: "0.4rem",
+              padding: "0.25rem 0.7rem",
+              color: "oklch(0.82 0.22 142)",
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 800,
+              fontSize: "0.85rem",
+              letterSpacing: "0.06em",
+            }}
+          >
+            ✅ WIN {wins}
+          </span>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              background: "oklch(0.65 0.22 25 / 0.12)",
+              border: "1px solid oklch(0.65 0.22 25 / 0.40)",
+              borderRadius: "0.4rem",
+              padding: "0.25rem 0.7rem",
+              color: "oklch(0.75 0.15 25)",
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 800,
+              fontSize: "0.85rem",
+              letterSpacing: "0.06em",
+            }}
+          >
+            ❌ LOSS {losses}
+          </span>
+          {voids > 0 && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                background: "oklch(0.40 0.02 265 / 0.15)",
+                border: "1px solid oklch(0.40 0.02 265 / 0.35)",
+                borderRadius: "0.4rem",
+                padding: "0.25rem 0.7rem",
+                color: "oklch(0.55 0.02 265)",
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 800,
+                fontSize: "0.85rem",
+                letterSpacing: "0.06em",
+              }}
+            >
+              ⬜ VOID {voids}
+            </span>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div
+          style={{
+            width: 1,
+            height: 32,
+            background: "oklch(0.26 0.025 265)",
+            flexShrink: 0,
+          }}
+        />
+
+        {/* Recent streak mini chips */}
+        <div className="flex items-center gap-1 flex-wrap">
+          <span
+            style={{
+              fontSize: "0.60rem",
+              color: "oklch(0.42 0.02 265)",
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              marginRight: 2,
+            }}
+          >
+            ΤΕΛΕΥΤΑΙΑ
+          </span>
+          {recentEntries.map((h, i) => {
+            const r = h.result.toLowerCase();
+            return (
+              <span
+                key={`recent-${String(h.id)}-${i}`}
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: "0.25rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "0.58rem",
+                  fontWeight: 900,
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  background:
+                    r === "win"
+                      ? "oklch(0.82 0.22 142 / 0.20)"
+                      : r === "loss"
+                        ? "oklch(0.65 0.22 25 / 0.18)"
+                        : "oklch(0.28 0.02 265)",
+                  color:
+                    r === "win"
+                      ? "oklch(0.82 0.22 142)"
+                      : r === "loss"
+                        ? "oklch(0.75 0.15 25)"
+                        : "oklch(0.50 0.02 265)",
+                  border: `1px solid ${r === "win" ? "oklch(0.82 0.22 142 / 0.40)" : r === "loss" ? "oklch(0.65 0.22 25 / 0.35)" : "oklch(0.32 0.025 265)"}`,
+                }}
+              >
+                {r === "win" ? "W" : r === "loss" ? "L" : "V"}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
 // --- Utility helpers ---
 function getPredictionType(prediction: string): "win" | "draw" | "loss" {
@@ -61,6 +287,130 @@ function getLeagueEmoji(league: string): string {
   )
     return "🇬🇷";
   return "⚽";
+}
+
+// --- Countdown Timer ---
+function calcSecondsLeft(matchDate: string): number | null {
+  if (!matchDate || matchDate.trim() === "") return null;
+  const target = new Date(matchDate).getTime();
+  if (Number.isNaN(target)) return null;
+  return Math.floor((target - Date.now()) / 1000);
+}
+
+function useCountdown(matchDate: string) {
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(() =>
+    calcSecondsLeft(matchDate),
+  );
+
+  useEffect(() => {
+    setSecondsLeft(calcSecondsLeft(matchDate));
+    const id = setInterval(() => {
+      setSecondsLeft(calcSecondsLeft(matchDate));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [matchDate]);
+
+  return secondsLeft;
+}
+
+type CountdownStatus = "live" | "soon" | "upcoming" | "finished";
+
+function getCountdownStatus(secondsLeft: number | null): CountdownStatus {
+  if (secondsLeft === null) return "upcoming";
+  if (secondsLeft < 0 && secondsLeft > -5400) return "live"; // within 90 min after kickoff
+  if (secondsLeft <= 0) return "finished";
+  if (secondsLeft <= 10800) return "soon"; // <= 3 hours
+  return "upcoming";
+}
+
+function CountdownTimer({ matchDate }: { matchDate: string }) {
+  const secondsLeft = useCountdown(matchDate);
+  const status = getCountdownStatus(secondsLeft);
+
+  const colors: Record<
+    CountdownStatus,
+    { bg: string; border: string; text: string; dot: string }
+  > = {
+    live: {
+      bg: "oklch(0.65 0.22 25 / 0.15)",
+      border: "oklch(0.65 0.22 25 / 0.55)",
+      text: "oklch(0.78 0.18 25)",
+      dot: "oklch(0.72 0.22 25)",
+    },
+    soon: {
+      bg: "oklch(0.80 0.18 85 / 0.12)",
+      border: "oklch(0.80 0.18 85 / 0.50)",
+      text: "oklch(0.85 0.18 85)",
+      dot: "oklch(0.82 0.20 85)",
+    },
+    upcoming: {
+      bg: "oklch(0.82 0.22 142 / 0.10)",
+      border: "oklch(0.82 0.22 142 / 0.40)",
+      text: "oklch(0.82 0.22 142)",
+      dot: "oklch(0.82 0.22 142)",
+    },
+    finished: {
+      bg: "oklch(0.22 0.025 265 / 0.6)",
+      border: "oklch(0.32 0.025 265)",
+      text: "oklch(0.48 0.02 265)",
+      dot: "oklch(0.36 0.02 265)",
+    },
+  };
+
+  const c = colors[status];
+
+  function formatTime(secs: number): string {
+    const abs = Math.abs(secs);
+    const h = Math.floor(abs / 3600);
+    const m = Math.floor((abs % 3600) / 60);
+    const s = abs % 60;
+    if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m`;
+    if (m > 0) return `${m}m ${s.toString().padStart(2, "0")}s`;
+    return `${s}s`;
+  }
+
+  return (
+    <div
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+      style={{
+        background: c.bg,
+        border: `1px solid ${c.border}`,
+        display: "inline-flex",
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: c.dot,
+          display: "inline-block",
+          flexShrink: 0,
+          animation:
+            status === "live" || status === "soon"
+              ? "pulse-green 1.5s infinite"
+              : "none",
+        }}
+      />
+      <span
+        style={{
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: "0.70rem",
+          letterSpacing: "0.08em",
+          color: c.text,
+        }}
+      >
+        {status === "live"
+          ? "⚽ LIVE"
+          : status === "finished"
+            ? "ΤΕΛΟΣ"
+            : secondsLeft !== null
+              ? formatTime(secondsLeft)
+              : "—"}
+      </span>
+    </div>
+  );
 }
 
 // --- Prediction Card ---
@@ -178,24 +528,15 @@ function PredictionCard({
                 🔥 ΑΓΩΝΑΣ ΗΜΕΡΑΣ
               </span>
             )}
+            {confidence >= 80 && <HotBadge />}
           </div>
-          <div className="flex items-center gap-1.5">
-            <span
-              className="live-dot"
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: "oklch(0.82 0.22 142)",
-                display: "inline-block",
-                flexShrink: 0,
-              }}
-            />
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <CountdownTimer matchDate={prediction.matchDate} />
             <span
               style={{
                 fontFamily: "'Barlow', sans-serif",
-                fontSize: "0.72rem",
-                color: "oklch(0.58 0.02 265)",
+                fontSize: "0.70rem",
+                color: "oklch(0.50 0.02 265)",
                 fontWeight: 500,
               }}
             >
@@ -1395,6 +1736,141 @@ function DateFilterToggle({
   );
 }
 
+// --- Live Matches Banner ---
+function LiveMatchesBanner({ predictions }: { predictions: Prediction[] }) {
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Suppress unused warning
+  void tick;
+
+  const liveMatches = predictions.filter((p) => {
+    const secs = calcSecondsLeft(p.matchDate);
+    if (secs === null) return false;
+    return secs < 0 && secs > -5400; // started but within 90 min
+  });
+
+  if (liveMatches.length === 0) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.35 }}
+      className="mb-5 rounded-xl overflow-hidden"
+      style={{
+        background: "oklch(0.65 0.22 25 / 0.12)",
+        border: "1px solid oklch(0.65 0.22 25 / 0.55)",
+        boxShadow: "0 0 20px oklch(0.65 0.22 25 / 0.18)",
+      }}
+    >
+      {/* Red top accent */}
+      <div
+        style={{
+          height: 3,
+          background:
+            "linear-gradient(90deg, oklch(0.72 0.22 25), oklch(0.65 0.22 25 / 0.4), transparent)",
+        }}
+      />
+      <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
+        {/* Pulsing red dot + LIVE label */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: "oklch(0.72 0.22 25)",
+              display: "inline-block",
+              flexShrink: 0,
+              animation: "pulse-red 1.2s ease-in-out infinite",
+              boxShadow: "0 0 8px oklch(0.72 0.22 25 / 0.7)",
+            }}
+          />
+          <span
+            style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 900,
+              fontSize: "0.82rem",
+              letterSpacing: "0.16em",
+              color: "oklch(0.88 0.18 25)",
+              textTransform: "uppercase" as const,
+            }}
+          >
+            LIVE ΤΩΡΑ
+          </span>
+        </div>
+
+        {/* Divider */}
+        <div
+          style={{
+            width: 1,
+            height: 24,
+            background: "oklch(0.65 0.22 25 / 0.40)",
+            flexShrink: 0,
+          }}
+        />
+
+        {/* Match list */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {liveMatches.map((p, i) => {
+            const elapsed = p.matchDate
+              ? Math.abs(
+                  Math.floor(
+                    (Date.now() - new Date(p.matchDate).getTime()) / 60000,
+                  ),
+                )
+              : 0;
+            return (
+              <div
+                key={`live-${String(p.id)}-${i}`}
+                className="flex items-center gap-2"
+              >
+                <span style={{ fontSize: "0.85rem" }}>
+                  {getLeagueEmoji(p.league)}
+                </span>
+                <span
+                  style={{
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    fontWeight: 700,
+                    fontSize: "0.82rem",
+                    color: "oklch(0.92 0.01 265)",
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  {p.homeTeam}{" "}
+                  <span style={{ color: "oklch(0.50 0.02 265)" }}>vs</span>{" "}
+                  {p.awayTeam}
+                </span>
+                <span
+                  style={{
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    fontWeight: 800,
+                    fontSize: "0.72rem",
+                    color: "oklch(0.72 0.22 25)",
+                    background: "oklch(0.72 0.22 25 / 0.12)",
+                    border: "1px solid oklch(0.72 0.22 25 / 0.35)",
+                    borderRadius: "0.3rem",
+                    padding: "0.1rem 0.45rem",
+                    letterSpacing: "0.06em",
+                  }}
+                >
+                  {elapsed}′
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 // --- Main App ---
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("single");
@@ -1417,6 +1893,8 @@ export default function App() {
     isLoading: matchOfDayLoading,
     isError: matchOfDayError,
   } = useGetMatchOfDayPredictions();
+
+  const { data: historyData } = useMatchHistory();
 
   const singlePredictions: Prediction[] = singleData ?? [];
   const parlayPredictions: Prediction[] = parlayData ?? [];
@@ -1545,6 +2023,31 @@ export default function App() {
             </p>
           </div>
         </motion.div>
+
+        {/* Live Matches Banner - shown when a match is in progress */}
+        <AnimatePresence>
+          {[
+            ...singlePredictions,
+            ...parlayPredictions,
+            ...matchOfDayPredictions,
+          ].some((p) => {
+            const secs = calcSecondsLeft(p.matchDate);
+            return secs !== null && secs < 0 && secs > -5400;
+          }) && (
+            <LiveMatchesBanner
+              predictions={[
+                ...singlePredictions,
+                ...parlayPredictions,
+                ...matchOfDayPredictions,
+              ]}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* History Stats Banner - shown when there's history data */}
+        {historyData && historyData.length > 0 && (
+          <HistoryStatsBanner history={historyData} />
+        )}
 
         {/* Tab Switcher */}
         <TabSwitcher active={activeTab} onChange={setActiveTab} />
