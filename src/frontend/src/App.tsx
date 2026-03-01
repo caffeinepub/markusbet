@@ -1980,6 +1980,21 @@ export default function App() {
     >
       <Header />
 
+      {/* Hero Banner */}
+      <div className="w-full" style={{ maxHeight: 220, overflow: "hidden" }}>
+        <img
+          src="/assets/generated/betting-hero-banner.dim_1200x400.jpg"
+          alt="MarkusBet Betting Banner"
+          style={{
+            width: "100%",
+            height: 220,
+            objectFit: "cover",
+            objectPosition: "center",
+            display: "block",
+          }}
+        />
+      </div>
+
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-6">
         {/* Section title */}
         <motion.div

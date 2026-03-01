@@ -127,16 +127,7 @@ async function fetchAndSeedPredictions(
   actor: import("../backend.d.ts").backendInterface | null,
 ): Promise<Prediction[]> {
   if (!actor) return [];
-  const raw = await actor.getPredictions();
-  if (raw.length === 0) {
-    try {
-      await actor.seedInitialData();
-      return await actor.getPredictions();
-    } catch {
-      return [];
-    }
-  }
-  return raw;
+  return actor.getPredictions();
 }
 
 export function useGetSinglePredictions() {
