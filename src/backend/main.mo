@@ -9,9 +9,6 @@ import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 
-import Array "mo:core/Array";
-
-
 actor {
   type Prediction = {
     id : Nat;
@@ -56,11 +53,10 @@ actor {
   };
 
   var nextId = 1 : Nat;
+  var predictions = Map.empty<Nat, Prediction>();
+  var matchHistory = Map.empty<Nat, MatchResult>();
+  var adminSessions = Map.empty<Text, Int>();
 
-  let predictions = Map.empty<Nat, Prediction>();
-  let matchHistory = Map.empty<Nat, MatchResult>();
-
-  let adminSessions = Map.empty<Text, Int>();
   let adminPassword = "MarkusBet2024!";
 
   public shared ({ caller }) func adminLogin(password : Text) : async ?Text {
@@ -138,11 +134,12 @@ actor {
     if (not adminSessions.containsKey(token)) {
       Runtime.trap("Admin access required");
     };
-    if (not predictions.containsKey(id)) {
+    if (predictions.containsKey(id)) {
+      predictions.remove(id);
+      true;
+    } else {
       Runtime.trap("Prediction not found");
     };
-    predictions.remove(id);
-    true;
   };
 
   public shared ({ caller }) func archivePrediction(token : Text, predictionId : Nat, result : Text) : async Bool {
@@ -188,11 +185,12 @@ actor {
     if (not adminSessions.containsKey(token)) {
       Runtime.trap("Admin access required");
     };
-    if (not matchHistory.containsKey(id)) {
+    if (matchHistory.containsKey(id)) {
+      matchHistory.remove(id);
+      true;
+    } else {
       Runtime.trap("History entry not found");
     };
-    matchHistory.remove(id);
-    true;
   };
 
   public shared ({ caller }) func seedInitialData() : async () {
