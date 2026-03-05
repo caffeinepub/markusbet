@@ -1075,8 +1075,607 @@ function Footer() {
   );
 }
 
+// --- Live Scores Types ---
+interface LiveMatch {
+  id: number;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  status: string; // "IN_PLAY" | "PAUSED" | "FINISHED" | "SCHEDULED" | "TIMED"
+  minute: number | null;
+  league: string;
+  matchDate: string;
+  stage?: string;
+}
+
+// --- Live Scores Tab ---
+function useLiveScores() {
+  const [matches, setMatches] = useState<LiveMatch[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  async function fetchLive() {
+    setIsError(false);
+    try {
+      // TheSportsDB free API - no key needed for basic data
+      // Fetch live scores (v2 endpoint, no key required)
+      const res = await fetch(
+        "https://www.thesportsdb.com/api/v1/json/3/latestsoccer.php",
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawMatches: any[] = json.events ?? [];
+
+      if (rawMatches.length === 0) {
+        // Fallback: fetch today's scheduled soccer matches
+        const today = new Date().toISOString().slice(0, 10);
+        const res2 = await fetch(
+          `https://www.thesportsdb.com/api/v1/json/3/eventsday.php?d=${today}&s=Soccer`,
+        );
+        if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
+        const json2 = await res2.json();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rawToday: any[] = json2.events ?? [];
+        const parsed: LiveMatch[] = rawToday.map((m, idx: number) => {
+          const homeScore =
+            m.intHomeScore !== null && m.intHomeScore !== ""
+              ? Number(m.intHomeScore)
+              : null;
+          const awayScore =
+            m.intAwayScore !== null && m.intAwayScore !== ""
+              ? Number(m.intAwayScore)
+              : null;
+          const finished =
+            m.strStatus === "Match Finished" || m.strProgress === "FT";
+          const live =
+            m.strStatus === "1H" ||
+            m.strStatus === "2H" ||
+            m.strStatus === "HT" ||
+            (m.strProgress &&
+              m.strProgress !== "FT" &&
+              m.strProgress !== "" &&
+              m.intHomeScore !== null);
+          const status = finished ? "FINISHED" : live ? "IN_PLAY" : "SCHEDULED";
+          const matchDateStr =
+            m.dateEvent && m.strTime
+              ? `${m.dateEvent}T${m.strTime}`
+              : (m.dateEvent ?? "");
+          return {
+            id: idx + 1,
+            homeTeam: m.strHomeTeam ?? "?",
+            awayTeam: m.strAwayTeam ?? "?",
+            homeScore,
+            awayScore,
+            status,
+            minute: null,
+            league: m.strLeague ?? m.strSport ?? "",
+            matchDate: matchDateStr,
+            stage: m.strRound ?? "",
+          };
+        });
+        const order: Record<string, number> = {
+          IN_PLAY: 0,
+          PAUSED: 1,
+          SCHEDULED: 2,
+          TIMED: 3,
+          FINISHED: 4,
+        };
+        parsed.sort(
+          (a, b) =>
+            (order[a.status] ?? 5) - (order[b.status] ?? 5) ||
+            a.matchDate.localeCompare(b.matchDate),
+        );
+        setMatches(parsed);
+        setLastUpdated(new Date());
+        return;
+      }
+
+      const parsed: LiveMatch[] = rawMatches.map((m, idx: number) => {
+        const homeScore =
+          m.intHomeScore !== null && m.intHomeScore !== ""
+            ? Number(m.intHomeScore)
+            : null;
+        const awayScore =
+          m.intAwayScore !== null && m.intAwayScore !== ""
+            ? Number(m.intAwayScore)
+            : null;
+        const finished =
+          m.strStatus === "Match Finished" || m.strProgress === "FT";
+        const live = !finished && (m.intHomeScore !== null || m.strProgress);
+        const status = finished ? "FINISHED" : live ? "IN_PLAY" : "SCHEDULED";
+        const matchDateStr =
+          m.dateEvent && m.strTime
+            ? `${m.dateEvent}T${m.strTime}`
+            : (m.dateEvent ?? "");
+        return {
+          id: idx + 1,
+          homeTeam: m.strHomeTeam ?? "?",
+          awayTeam: m.strAwayTeam ?? "?",
+          homeScore,
+          awayScore,
+          status,
+          minute:
+            m.strProgress && !Number.isNaN(Number(m.strProgress))
+              ? Number(m.strProgress)
+              : null,
+          league: m.strLeague ?? m.strSport ?? "",
+          matchDate: matchDateStr,
+          stage: m.strRound ?? "",
+        };
+      });
+      const order: Record<string, number> = {
+        IN_PLAY: 0,
+        PAUSED: 1,
+        SCHEDULED: 2,
+        TIMED: 3,
+        FINISHED: 4,
+      };
+      parsed.sort(
+        (a, b) =>
+          (order[a.status] ?? 5) - (order[b.status] ?? 5) ||
+          a.matchDate.localeCompare(b.matchDate),
+      );
+      setMatches(parsed);
+      setLastUpdated(new Date());
+    } catch {
+      setIsError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchLive is stable inside the hook
+  useEffect(() => {
+    fetchLive();
+    const id = setInterval(fetchLive, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  return { matches, isLoading, isError, lastUpdated, refetch: fetchLive };
+}
+
+function LiveScoreCard({
+  match,
+  index,
+}: {
+  match: LiveMatch;
+  index: number;
+}) {
+  const isLive = match.status === "IN_PLAY" || match.status === "PAUSED";
+  const isFinished = match.status === "FINISHED";
+  const isScheduled = match.status === "TIMED" || match.status === "SCHEDULED";
+
+  const accentColor = isLive
+    ? "oklch(0.72 0.22 25)"
+    : isFinished
+      ? "oklch(0.50 0.02 265)"
+      : "oklch(0.82 0.22 142)";
+
+  function formatMatchTime(dateStr: string): string {
+    try {
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleTimeString("el-GR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Athens",
+      });
+    } catch {
+      return "";
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.35,
+        delay: index * 0.05,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      style={{
+        background: "oklch(0.16 0.02 265)",
+        border: `1px solid ${accentColor}33`,
+        borderRadius: "0.75rem",
+        overflow: "hidden",
+      }}
+    >
+      {/* Accent line */}
+      <div
+        style={{
+          height: 2,
+          background: `linear-gradient(90deg, ${accentColor}, ${accentColor}44, transparent)`,
+        }}
+      />
+      <div className="px-4 py-3">
+        {/* League + status row */}
+        <div className="flex items-center justify-between mb-3">
+          <span
+            style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 700,
+              fontSize: "0.65rem",
+              letterSpacing: "0.12em",
+              padding: "0.15rem 0.55rem",
+              borderRadius: "0.3rem",
+              background: "oklch(0.22 0.025 265)",
+              border: "1px solid oklch(0.32 0.03 265)",
+              color: "oklch(0.65 0.02 265)",
+              textTransform: "uppercase" as const,
+            }}
+          >
+            {getLeagueEmoji(match.league)} {match.league}
+          </span>
+
+          {/* Status badge */}
+          {isLive ? (
+            <div className="flex items-center gap-1.5">
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: "oklch(0.72 0.22 25)",
+                  display: "inline-block",
+                  animation: "pulse-red 1.2s infinite",
+                  boxShadow: "0 0 6px oklch(0.72 0.22 25 / 0.7)",
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 900,
+                  fontSize: "0.70rem",
+                  letterSpacing: "0.12em",
+                  color: "oklch(0.88 0.18 25)",
+                }}
+              >
+                {match.status === "PAUSED" ? "ΗΜ." : "LIVE"}
+                {match.minute !== null ? ` ${match.minute}′` : ""}
+              </span>
+            </div>
+          ) : isFinished ? (
+            <span
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 700,
+                fontSize: "0.68rem",
+                letterSpacing: "0.08em",
+                color: "oklch(0.48 0.02 265)",
+              }}
+            >
+              ΤΕΛΙΚΟ
+            </span>
+          ) : (
+            <span
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 700,
+                fontSize: "0.68rem",
+                letterSpacing: "0.08em",
+                color: "oklch(0.65 0.14 142)",
+              }}
+            >
+              ⏰ {formatMatchTime(match.matchDate)}
+            </span>
+          )}
+        </div>
+
+        {/* Score row */}
+        <div className="flex items-center justify-between gap-2">
+          {/* Home team */}
+          <div className="flex-1 text-right">
+            <p
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 700,
+                fontSize: "clamp(0.9rem, 2.2vw, 1.1rem)",
+                color: "oklch(0.92 0.01 265)",
+                lineHeight: 1.2,
+              }}
+            >
+              {match.homeTeam}
+            </p>
+          </div>
+
+          {/* Score */}
+          <div
+            className="flex items-center gap-1 shrink-0 px-3 py-1.5 rounded-lg"
+            style={{
+              background: isLive
+                ? "oklch(0.72 0.22 25 / 0.15)"
+                : isFinished
+                  ? "oklch(0.18 0.025 265)"
+                  : "oklch(0.14 0.018 265)",
+              border: `1px solid ${isLive ? "oklch(0.72 0.22 25 / 0.40)" : "oklch(0.28 0.025 265)"}`,
+              minWidth: "4.5rem",
+              justifyContent: "center",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 900,
+                fontSize: "1.4rem",
+                color: isLive
+                  ? "oklch(0.88 0.18 25)"
+                  : isFinished
+                    ? "oklch(0.82 0.01 265)"
+                    : "oklch(0.40 0.02 265)",
+                letterSpacing: "0.02em",
+                lineHeight: 1,
+              }}
+            >
+              {match.homeScore !== null && match.awayScore !== null
+                ? `${match.homeScore} - ${match.awayScore}`
+                : isScheduled
+                  ? "vs"
+                  : "- -"}
+            </span>
+          </div>
+
+          {/* Away team */}
+          <div className="flex-1 text-left">
+            <p
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 700,
+                fontSize: "clamp(0.9rem, 2.2vw, 1.1rem)",
+                color: "oklch(0.92 0.01 265)",
+                lineHeight: 1.2,
+              }}
+            >
+              {match.awayTeam}
+            </p>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function LiveScoresContent() {
+  const { matches, isLoading, isError, lastUpdated, refetch } = useLiveScores();
+
+  const liveMatches = matches.filter(
+    (m) => m.status === "IN_PLAY" || m.status === "PAUSED",
+  );
+  const scheduledMatches = matches.filter(
+    (m) => m.status === "TIMED" || m.status === "SCHEDULED",
+  );
+  const finishedMatches = matches.filter((m) => m.status === "FINISHED");
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div
+            key={i}
+            className="h-20 rounded-xl animate-pulse"
+            style={{ background: "oklch(0.16 0.02 265)" }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div
+        className="rounded-xl p-10 text-center"
+        style={{
+          background: "oklch(0.16 0.02 265)",
+          border: "1px solid oklch(0.65 0.22 25 / 0.3)",
+        }}
+      >
+        <p style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>📡</p>
+        <p
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 700,
+            fontSize: "1rem",
+            color: "oklch(0.75 0.15 25)",
+            letterSpacing: "0.04em",
+            marginBottom: "0.5rem",
+          }}
+        >
+          ΔΕΝ ΗΤΑΝ ΔΥΝΑΤΗ Η ΣΥΝΔΕΣΗ
+        </p>
+        <p
+          style={{
+            fontSize: "0.75rem",
+            color: "oklch(0.48 0.02 265)",
+            marginBottom: "1rem",
+          }}
+        >
+          Πρόβλημα σύνδεσης με το TheSportsDB
+        </p>
+        <button
+          type="button"
+          onClick={refetch}
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 700,
+            fontSize: "0.75rem",
+            letterSpacing: "0.08em",
+            padding: "0.45rem 1.2rem",
+            borderRadius: "0.4rem",
+            cursor: "pointer",
+            border: "none",
+            background: "oklch(0.65 0.22 25 / 0.2)",
+            color: "oklch(0.78 0.15 25)",
+            transition: "all 0.15s",
+          }}
+        >
+          ↺ ΔΟΚΙΜΗ ΞΑΝΑ
+        </button>
+      </div>
+    );
+  }
+
+  if (matches.length === 0) {
+    return (
+      <div
+        className="rounded-xl p-12 text-center"
+        style={{
+          background: "oklch(0.16 0.02 265)",
+          border: "1px solid oklch(0.28 0.025 265)",
+        }}
+      >
+        <p style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>⚽</p>
+        <p
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 700,
+            fontSize: "1.1rem",
+            color: "oklch(0.55 0.02 265)",
+            letterSpacing: "0.04em",
+          }}
+        >
+          ΔΕΝ ΥΠΑΡΧΟΥΝ ΑΓΩΝΕΣ ΣΗΜΕΡΑ
+        </p>
+        <p
+          style={{
+            fontSize: "0.75rem",
+            color: "oklch(0.42 0.02 265)",
+            marginTop: "0.5rem",
+          }}
+        >
+          Δεν βρέθηκαν αγώνες για σήμερα στα διαθέσιμα πρωταθλήματα
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Last updated + refresh */}
+      <div className="flex items-center justify-between">
+        <span
+          style={{
+            fontSize: "0.62rem",
+            color: "oklch(0.40 0.02 265)",
+            fontFamily: "'Barlow Condensed', sans-serif",
+            letterSpacing: "0.06em",
+          }}
+        >
+          {lastUpdated
+            ? `ΕΝΗΜΕΡΩΘΗΚΕ: ${lastUpdated.toLocaleTimeString("el-GR", { hour: "2-digit", minute: "2-digit" })}`
+            : ""}
+        </span>
+        <button
+          type="button"
+          onClick={refetch}
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 700,
+            fontSize: "0.68rem",
+            letterSpacing: "0.08em",
+            padding: "0.3rem 0.8rem",
+            borderRadius: "0.4rem",
+            cursor: "pointer",
+            border: "none",
+            background: "oklch(0.18 0.025 265)",
+            color: "oklch(0.55 0.02 265)",
+            transition: "all 0.15s",
+          }}
+        >
+          ↺ ΑΝΑΝΕΩΣΗ
+        </button>
+      </div>
+
+      {/* Live now section */}
+      {liveMatches.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "oklch(0.72 0.22 25)",
+                display: "inline-block",
+                animation: "pulse-red 1.2s infinite",
+                boxShadow: "0 0 6px oklch(0.72 0.22 25 / 0.7)",
+              }}
+            />
+            <span
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 900,
+                fontSize: "0.75rem",
+                letterSpacing: "0.14em",
+                color: "oklch(0.88 0.18 25)",
+              }}
+            >
+              LIVE ΤΩΡΑ ({liveMatches.length})
+            </span>
+          </div>
+          <div className="space-y-2">
+            {liveMatches.map((m, i) => (
+              <LiveScoreCard key={m.id} match={m} index={i} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Scheduled today */}
+      {scheduledMatches.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 700,
+                fontSize: "0.72rem",
+                letterSpacing: "0.12em",
+                color: "oklch(0.55 0.02 265)",
+              }}
+            >
+              📅 ΠΡΟΓΡΑΜΜΑΤΙΣΜΕΝΟΙ ({scheduledMatches.length})
+            </span>
+          </div>
+          <div className="space-y-2">
+            {scheduledMatches.map((m, i) => (
+              <LiveScoreCard key={m.id} match={m} index={i} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Finished today */}
+      {finishedMatches.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 700,
+                fontSize: "0.72rem",
+                letterSpacing: "0.12em",
+                color: "oklch(0.48 0.02 265)",
+              }}
+            >
+              ✓ ΟΛΟΚΛΗΡΩΘΗΚΑΝ ({finishedMatches.length})
+            </span>
+          </div>
+          <div className="space-y-2">
+            {finishedMatches.map((m, i) => (
+              <LiveScoreCard key={m.id} match={m} index={i} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Tab Switcher ---
-type ActiveTab = "single" | "parlay" | "match_of_day" | "history";
+type ActiveTab = "single" | "parlay" | "match_of_day" | "history" | "live";
 
 function TabSwitcher({
   active,
@@ -1210,6 +1809,31 @@ function TabSwitcher({
         }}
       >
         📊 ΙΣΤΟΡΙΚΟ
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("live")}
+        style={{
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: "0.88rem",
+          letterSpacing: "0.10em",
+          padding: "0.5rem 1.3rem",
+          borderRadius: "0.4rem",
+          cursor: "pointer",
+          border: "none",
+          transition: "all 0.18s",
+          background:
+            active === "live" ? "oklch(0.72 0.22 25 / 0.15)" : "transparent",
+          color:
+            active === "live" ? "oklch(0.88 0.18 25)" : "oklch(0.48 0.02 265)",
+          borderBottom:
+            active === "live"
+              ? "2px solid oklch(0.72 0.22 25)"
+              : "2px solid transparent",
+        }}
+      >
+        🔴 LIVE
       </button>
     </motion.div>
   );
@@ -1736,17 +2360,118 @@ function DateFilterToggle({
   );
 }
 
-// --- Live Matches Banner ---
-function LiveMatchesBanner({ predictions }: { predictions: Prediction[] }) {
-  const [tick, setTick] = useState(0);
+// --- Live Score hook for banner (fetches from TheSportsDB, no API key) ---
+interface LiveScoreLookup {
+  [key: string]: {
+    home: number | null;
+    away: number | null;
+    minute: number | null;
+  };
+}
 
+function useLiveScoresForBanner(): {
+  scores: LiveScoreLookup;
+  isLoaded: boolean;
+} {
+  const [scores, setScores] = useState<LiveScoreLookup>({});
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  async function fetchScores() {
+    try {
+      // Try live scores first
+      const res = await fetch(
+        "https://www.thesportsdb.com/api/v1/json/3/latestsoccer.php",
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawMatches: any[] = json.events ?? [];
+
+      // If no live matches, try today's events
+      let allMatches = rawMatches;
+      if (allMatches.length === 0) {
+        const today = new Date().toISOString().slice(0, 10);
+        const res2 = await fetch(
+          `https://www.thesportsdb.com/api/v1/json/3/eventsday.php?d=${today}&s=Soccer`,
+        );
+        if (res2.ok) {
+          const json2 = await res2.json();
+          allMatches = json2.events ?? [];
+        }
+      }
+
+      const lookup: LiveScoreLookup = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const m of allMatches) {
+        const homeScore =
+          m.intHomeScore !== null && m.intHomeScore !== ""
+            ? Number(m.intHomeScore)
+            : null;
+        const awayScore =
+          m.intAwayScore !== null && m.intAwayScore !== ""
+            ? Number(m.intAwayScore)
+            : null;
+        const minute =
+          m.strProgress && !Number.isNaN(Number(m.strProgress))
+            ? Number(m.strProgress)
+            : null;
+        const home = (m.strHomeTeam ?? "").toLowerCase().trim();
+        const away = (m.strAwayTeam ?? "").toLowerCase().trim();
+        if (home && away) {
+          lookup[`${home}|${away}`] = {
+            home: homeScore,
+            away: awayScore,
+            minute,
+          };
+        }
+      }
+      setScores(lookup);
+    } catch {
+      // silent fail - banner still shows without scores
+    } finally {
+      setIsLoaded(true);
+    }
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchScores is stable inside the hook
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 30000);
+    fetchScores();
+    const id = setInterval(fetchScores, 60_000);
     return () => clearInterval(id);
   }, []);
 
-  // Suppress unused warning
-  void tick;
+  return { scores, isLoaded };
+}
+
+function findScore(
+  scores: LiveScoreLookup,
+  homeTeam: string,
+  awayTeam: string,
+): { home: number | null; away: number | null; minute: number | null } | null {
+  // Try exact match first
+  const key = `${homeTeam.toLowerCase().trim()}|${awayTeam.toLowerCase().trim()}`;
+  if (scores[key]) return scores[key];
+
+  // Try partial/fuzzy match (first 5 chars of each team name)
+  const shortHome = homeTeam.toLowerCase().trim().slice(0, 5);
+  const shortAway = awayTeam.toLowerCase().trim().slice(0, 5);
+  for (const [k, v] of Object.entries(scores)) {
+    const [kHome, kAway] = k.split("|");
+    if (
+      kHome &&
+      kAway &&
+      kHome.slice(0, 5) === shortHome &&
+      kAway.slice(0, 5) === shortAway
+    ) {
+      return v;
+    }
+  }
+  return null;
+}
+
+// --- Live Matches Banner ---
+function LiveMatchesBanner({ predictions }: { predictions: Prediction[] }) {
+  const { scores } = useLiveScoresForBanner();
 
   const liveMatches = predictions.filter((p) => {
     const secs = calcSecondsLeft(p.matchDate);
@@ -1817,7 +2542,7 @@ function LiveMatchesBanner({ predictions }: { predictions: Prediction[] }) {
         />
 
         {/* Match list */}
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex flex-col gap-2 w-full sm:flex-row sm:flex-wrap sm:items-center sm:w-auto">
           {liveMatches.map((p, i) => {
             const elapsed = p.matchDate
               ? Math.abs(
@@ -1826,27 +2551,78 @@ function LiveMatchesBanner({ predictions }: { predictions: Prediction[] }) {
                   ),
                 )
               : 0;
+            const scoreData = findScore(scores, p.homeTeam, p.awayTeam);
+            const hasScore =
+              scoreData !== null &&
+              scoreData.home !== null &&
+              scoreData.away !== null;
+            const displayMinute = scoreData?.minute ?? elapsed;
+
             return (
               <div
                 key={`live-${String(p.id)}-${i}`}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 flex-wrap"
               >
                 <span style={{ fontSize: "0.85rem" }}>
                   {getLeagueEmoji(p.league)}
                 </span>
+                {/* Home team */}
                 <span
                   style={{
                     fontFamily: "'Barlow Condensed', sans-serif",
                     fontWeight: 700,
-                    fontSize: "0.82rem",
+                    fontSize: "0.85rem",
                     color: "oklch(0.92 0.01 265)",
                     letterSpacing: "0.02em",
                   }}
                 >
-                  {p.homeTeam}{" "}
-                  <span style={{ color: "oklch(0.50 0.02 265)" }}>vs</span>{" "}
+                  {p.homeTeam}
+                </span>
+
+                {/* Score box */}
+                <div
+                  className="flex items-center gap-1 px-2 py-0.5 rounded"
+                  style={{
+                    background: hasScore
+                      ? "oklch(0.72 0.22 25 / 0.20)"
+                      : "oklch(0.18 0.025 265)",
+                    border: `1px solid ${hasScore ? "oklch(0.72 0.22 25 / 0.55)" : "oklch(0.32 0.025 265)"}`,
+                    minWidth: "3.2rem",
+                    justifyContent: "center",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: "'Barlow Condensed', sans-serif",
+                      fontWeight: 900,
+                      fontSize: "1rem",
+                      color: hasScore
+                        ? "oklch(0.96 0.12 25)"
+                        : "oklch(0.42 0.02 265)",
+                      letterSpacing: "0.04em",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {hasScore
+                      ? `${scoreData!.home} - ${scoreData!.away}`
+                      : "vs"}
+                  </span>
+                </div>
+
+                {/* Away team */}
+                <span
+                  style={{
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                    color: "oklch(0.92 0.01 265)",
+                    letterSpacing: "0.02em",
+                  }}
+                >
                   {p.awayTeam}
                 </span>
+
+                {/* Minute badge */}
                 <span
                   style={{
                     fontFamily: "'Barlow Condensed', sans-serif",
@@ -1860,7 +2636,7 @@ function LiveMatchesBanner({ predictions }: { predictions: Prediction[] }) {
                     letterSpacing: "0.06em",
                   }}
                 >
-                  {elapsed}′
+                  {displayMinute}′
                 </span>
               </div>
             );
@@ -1901,8 +2677,9 @@ export default function App() {
   const matchOfDayPredictions: Prediction[] = matchOfDayData ?? [];
 
   const isHistoryTab = activeTab === "history";
+  const isLiveTab = activeTab === "live";
 
-  // Apply today filter (not relevant for history tab)
+  // Apply today filter (not relevant for history/live tab)
   const filteredSingle = todayOnly
     ? singlePredictions.filter((p) => isMatchToday(p.matchDate))
     : singlePredictions;
@@ -1918,19 +2695,25 @@ export default function App() {
       ? filteredSingle
       : activeTab === "parlay"
         ? filteredParlay
-        : filteredMatchOfDay;
+        : activeTab === "match_of_day"
+          ? filteredMatchOfDay
+          : [];
   const isLoading =
     activeTab === "single"
       ? singleLoading
       : activeTab === "parlay"
         ? parlayLoading
-        : matchOfDayLoading;
+        : activeTab === "match_of_day"
+          ? matchOfDayLoading
+          : false;
   const isError =
     activeTab === "single"
       ? singleError
       : activeTab === "parlay"
         ? parlayError
-        : matchOfDayError;
+        : activeTab === "match_of_day"
+          ? matchOfDayError
+          : false;
 
   // Determine empty state type: todayOnly with no results vs genuinely empty
   const hasPredictionsAtAll =
@@ -1938,7 +2721,9 @@ export default function App() {
       ? singlePredictions.length > 0
       : activeTab === "parlay"
         ? parlayPredictions.length > 0
-        : matchOfDayPredictions.length > 0;
+        : activeTab === "match_of_day"
+          ? matchOfDayPredictions.length > 0
+          : false;
   const emptyBecauseFilter =
     !isHistoryTab &&
     todayOnly &&
@@ -1948,31 +2733,37 @@ export default function App() {
   // Section title derivation
   const sectionTitle = isHistoryTab
     ? "ΙΣΤΟΡΙΚΟ ΑΓΩΝΩΝ"
-    : activeTab === "parlay"
-      ? "ΠΑΡΟΛΙ"
-      : activeTab === "match_of_day"
-        ? "ΑΓΩΝΑΣ ΤΗΣ ΗΜΕΡΑΣ"
-        : todayOnly
-          ? "ΣΗΜΕΡΙΝΕΣ ΠΡΟΒΛΕΨΕΙΣ"
-          : "ΟΛΕΣ ΟΙ ΠΡΟΒΛΕΨΕΙΣ";
+    : isLiveTab
+      ? "LIVE ΑΠΟΤΕΛΕΣΜΑΤΑ"
+      : activeTab === "parlay"
+        ? "ΠΑΡΟΛΙ"
+        : activeTab === "match_of_day"
+          ? "ΑΓΩΝΑΣ ΤΗΣ ΗΜΕΡΑΣ"
+          : todayOnly
+            ? "ΣΗΜΕΡΙΝΕΣ ΠΡΟΒΛΕΨΕΙΣ"
+            : "ΟΛΕΣ ΟΙ ΠΡΟΒΛΕΨΕΙΣ";
 
   const sectionSubtitle = isHistoryTab
     ? "Αρχειοθετημένες προβλέψεις με αποτελέσματα"
-    : activeTab === "parlay"
-      ? "Συνδυαστικές προβλέψεις"
-      : activeTab === "match_of_day"
-        ? "Η κορυφαία επιλογή της ημέρας"
-        : todayOnly
-          ? "Προβλέψεις για σήμερα"
-          : "Expertly curated football tips";
+    : isLiveTab
+      ? "Αποτελέσματα & σκορ αγώνων σήμερα"
+      : activeTab === "parlay"
+        ? "Συνδυαστικές προβλέψεις"
+        : activeTab === "match_of_day"
+          ? "Η κορυφαία επιλογή της ημέρας"
+          : todayOnly
+            ? "Προβλέψεις για σήμερα"
+            : "Expertly curated football tips";
 
   const accentGradient = isHistoryTab
     ? "linear-gradient(180deg, oklch(0.72 0.14 230), oklch(0.55 0.12 230))"
-    : activeTab === "parlay"
-      ? "linear-gradient(180deg, oklch(0.88 0.18 85), oklch(0.75 0.16 85))"
-      : activeTab === "match_of_day"
-        ? "linear-gradient(180deg, oklch(0.82 0.18 45), oklch(0.70 0.16 25))"
-        : "linear-gradient(180deg, oklch(0.82 0.22 142), oklch(0.70 0.20 160))";
+    : isLiveTab
+      ? "linear-gradient(180deg, oklch(0.72 0.22 25), oklch(0.55 0.18 25))"
+      : activeTab === "parlay"
+        ? "linear-gradient(180deg, oklch(0.88 0.18 85), oklch(0.75 0.16 85))"
+        : activeTab === "match_of_day"
+          ? "linear-gradient(180deg, oklch(0.82 0.18 45), oklch(0.70 0.16 25))"
+          : "linear-gradient(180deg, oklch(0.82 0.22 142), oklch(0.70 0.20 160))";
 
   return (
     <div
@@ -2067,15 +2858,18 @@ export default function App() {
         {/* Tab Switcher */}
         <TabSwitcher active={activeTab} onChange={setActiveTab} />
 
-        {/* Date filter toggle - hidden on history tab */}
-        {!isHistoryTab && (
+        {/* Date filter toggle - hidden on history/live tab */}
+        {!isHistoryTab && !isLiveTab && (
           <DateFilterToggle todayOnly={todayOnly} onChange={setTodayOnly} />
         )}
 
-        {/* Stats bar - hidden on history tab */}
-        {!isHistoryTab && !isLoading && activePredictions.length > 0 && (
-          <StatsBar predictions={activePredictions} />
-        )}
+        {/* Stats bar - hidden on history/live tab */}
+        {!isHistoryTab &&
+          !isLiveTab &&
+          !isLoading &&
+          activePredictions.length > 0 && (
+            <StatsBar predictions={activePredictions} />
+          )}
 
         {/* Content */}
         <AnimatePresence mode="wait">
@@ -2088,6 +2882,8 @@ export default function App() {
           >
             {isHistoryTab ? (
               <HistoryContent />
+            ) : isLiveTab ? (
+              <LiveScoresContent />
             ) : emptyBecauseFilter ? (
               <motion.div
                 initial={{ opacity: 0 }}
