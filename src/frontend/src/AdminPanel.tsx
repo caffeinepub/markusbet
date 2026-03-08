@@ -3030,6 +3030,18 @@ export default function AdminPanel() {
 
   const authQuery = useIsAdminAuthenticated(token);
 
+  // Timeout: if checking takes more than 8 seconds, clear and show login
+  useEffect(() => {
+    if (!checking) return;
+    const timeout = setTimeout(() => {
+      localStorage.removeItem(STORAGE_KEY);
+      setToken(null);
+      setVerified(false);
+      setChecking(false);
+    }, 8000);
+    return () => clearTimeout(timeout);
+  }, [checking]);
+
   useEffect(() => {
     if (!token) {
       setChecking(false);
@@ -3040,7 +3052,7 @@ export default function AdminPanel() {
       if (authQuery.data) {
         setVerified(true);
       } else {
-        // Token expired/invalid
+        // Token expired/invalid after deploy -- clear and show login
         localStorage.removeItem(STORAGE_KEY);
         setToken(null);
         setVerified(false);
@@ -3048,6 +3060,10 @@ export default function AdminPanel() {
       setChecking(false);
     }
     if (authQuery.isError) {
+      // On error, clear stale token and show login
+      localStorage.removeItem(STORAGE_KEY);
+      setToken(null);
+      setVerified(false);
       setChecking(false);
     }
   }, [authQuery.isSuccess, authQuery.data, authQuery.isError, token]);
@@ -3055,9 +3071,11 @@ export default function AdminPanel() {
   function handleLogin(newToken: string) {
     setToken(newToken);
     setVerified(true);
+    setChecking(false);
   }
 
   function handleLogout() {
+    localStorage.removeItem(STORAGE_KEY);
     setToken(null);
     setVerified(false);
   }

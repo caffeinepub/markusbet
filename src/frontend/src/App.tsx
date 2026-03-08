@@ -1675,7 +1675,13 @@ function LiveScoresContent() {
 }
 
 // --- Tab Switcher ---
-type ActiveTab = "single" | "parlay" | "match_of_day" | "history" | "live";
+type ActiveTab =
+  | "single"
+  | "parlay"
+  | "match_of_day"
+  | "history"
+  | "live"
+  | "tipsters";
 
 function TabSwitcher({
   active,
@@ -1834,6 +1840,36 @@ function TabSwitcher({
         }}
       >
         🔴 LIVE
+      </button>
+      <button
+        type="button"
+        data-ocid="tipsters.tab"
+        onClick={() => onChange("tipsters")}
+        style={{
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: "0.88rem",
+          letterSpacing: "0.10em",
+          padding: "0.5rem 1.3rem",
+          borderRadius: "0.4rem",
+          cursor: "pointer",
+          border: "none",
+          transition: "all 0.18s",
+          background:
+            active === "tipsters"
+              ? "oklch(0.68 0.20 300 / 0.15)"
+              : "transparent",
+          color:
+            active === "tipsters"
+              ? "oklch(0.82 0.18 300)"
+              : "oklch(0.48 0.02 265)",
+          borderBottom:
+            active === "tipsters"
+              ? "2px solid oklch(0.82 0.18 300)"
+              : "2px solid transparent",
+        }}
+      >
+        🎯 TIPSTERS
       </button>
     </motion.div>
   );
@@ -2647,6 +2683,172 @@ function LiveMatchesBanner({ predictions }: { predictions: Prediction[] }) {
   );
 }
 
+// --- Tipsters Data ---
+const TIPSTERS = [
+  {
+    id: "manolo",
+    name: "Manolo",
+    avatar: "🧢",
+    description: "Έμπειρος tipster με εξειδίκευση σε ευρωπαϊκά πρωταθλήματα.",
+    accentColor: "oklch(0.82 0.18 300)",
+  },
+  // Future tipsters can be added here
+] as const;
+
+type TipsterId = (typeof TIPSTERS)[number]["id"];
+
+function TipstersContent() {
+  const [activeTipster, setActiveTipster] = useState<TipsterId>("manolo");
+  const tipster = TIPSTERS.find((t) => t.id === activeTipster) ?? TIPSTERS[0];
+
+  return (
+    <div className="space-y-5">
+      {/* Tipster selector */}
+      <div className="flex flex-wrap gap-2">
+        {TIPSTERS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            data-ocid={`tipsters.${t.id}.button`}
+            onClick={() => setActiveTipster(t.id)}
+            style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 800,
+              fontSize: "0.88rem",
+              letterSpacing: "0.08em",
+              padding: "0.5rem 1.4rem",
+              borderRadius: "0.55rem",
+              cursor: "pointer",
+              border: "none",
+              transition: "all 0.18s",
+              background:
+                activeTipster === t.id
+                  ? "oklch(0.68 0.20 300 / 0.18)"
+                  : "oklch(0.16 0.02 265)",
+              color:
+                activeTipster === t.id
+                  ? "oklch(0.88 0.18 300)"
+                  : "oklch(0.55 0.02 265)",
+              boxShadow:
+                activeTipster === t.id
+                  ? "0 0 0 1.5px oklch(0.82 0.18 300 / 0.55)"
+                  : "0 0 0 1px oklch(0.28 0.025 265)",
+            }}
+          >
+            {t.avatar} {t.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Tipster profile card */}
+      <motion.div
+        key={tipster.id}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="rounded-xl overflow-hidden"
+        style={{
+          background: "oklch(0.15 0.02 265)",
+          border: `1px solid ${tipster.accentColor}33`,
+        }}
+      >
+        {/* Accent top line */}
+        <div
+          style={{
+            height: 3,
+            background: `linear-gradient(90deg, ${tipster.accentColor}, ${tipster.accentColor}44, transparent)`,
+          }}
+        />
+        <div className="p-5 md:p-6">
+          {/* Avatar + name */}
+          <div className="flex items-center gap-4 mb-4">
+            <div
+              className="flex items-center justify-center rounded-full shrink-0"
+              style={{
+                width: 56,
+                height: 56,
+                background: "oklch(0.68 0.20 300 / 0.15)",
+                border: `2px solid ${tipster.accentColor}55`,
+                fontSize: "1.75rem",
+              }}
+            >
+              {tipster.avatar}
+            </div>
+            <div>
+              <h3
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 900,
+                  fontSize: "1.4rem",
+                  letterSpacing: "0.04em",
+                  color: "oklch(0.96 0.01 265)",
+                  lineHeight: 1.1,
+                }}
+              >
+                {tipster.name.toUpperCase()}
+              </h3>
+              <span
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontWeight: 700,
+                  fontSize: "0.65rem",
+                  letterSpacing: "0.14em",
+                  color: tipster.accentColor,
+                  textTransform: "uppercase" as const,
+                }}
+              >
+                🎯 TIPSTER
+              </span>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div
+            className="rounded-lg p-4"
+            style={{
+              background: "oklch(0.13 0.018 265 / 0.8)",
+              border: "1px solid oklch(0.26 0.025 265 / 0.6)",
+            }}
+          >
+            <p
+              style={{
+                fontSize: "0.85rem",
+                lineHeight: 1.65,
+                color: "oklch(0.65 0.015 265)",
+                fontFamily: "'Barlow', sans-serif",
+              }}
+            >
+              {tipster.description}
+            </p>
+          </div>
+
+          {/* Coming soon notice */}
+          <div
+            className="mt-4 rounded-lg p-4 text-center"
+            style={{
+              background: "oklch(0.68 0.20 300 / 0.07)",
+              border: `1px solid ${tipster.accentColor}22`,
+            }}
+          >
+            <p
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 700,
+                fontSize: "0.80rem",
+                letterSpacing: "0.10em",
+                color: "oklch(0.48 0.02 265)",
+                textTransform: "uppercase" as const,
+              }}
+            >
+              📌 Οι προβλέψεις του {tipster.name} θα εμφανίζονται εδώ σύντομα
+            </p>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // --- Main App ---
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("single");
@@ -2678,8 +2880,9 @@ export default function App() {
 
   const isHistoryTab = activeTab === "history";
   const isLiveTab = activeTab === "live";
+  const isTipstersTab = activeTab === "tipsters";
 
-  // Apply today filter (not relevant for history/live tab)
+  // Apply today filter (not relevant for history/live/tipsters tab)
   const filteredSingle = todayOnly
     ? singlePredictions.filter((p) => isMatchToday(p.matchDate))
     : singlePredictions;
@@ -2726,6 +2929,7 @@ export default function App() {
           : false;
   const emptyBecauseFilter =
     !isHistoryTab &&
+    !isTipstersTab &&
     todayOnly &&
     hasPredictionsAtAll &&
     activePredictions.length === 0;
@@ -2735,35 +2939,41 @@ export default function App() {
     ? "ΙΣΤΟΡΙΚΟ ΑΓΩΝΩΝ"
     : isLiveTab
       ? "LIVE ΑΠΟΤΕΛΕΣΜΑΤΑ"
-      : activeTab === "parlay"
-        ? "ΠΑΡΟΛΙ"
-        : activeTab === "match_of_day"
-          ? "ΑΓΩΝΑΣ ΤΗΣ ΗΜΕΡΑΣ"
-          : todayOnly
-            ? "ΣΗΜΕΡΙΝΕΣ ΠΡΟΒΛΕΨΕΙΣ"
-            : "ΟΛΕΣ ΟΙ ΠΡΟΒΛΕΨΕΙΣ";
+      : isTipstersTab
+        ? "TIPSTERS"
+        : activeTab === "parlay"
+          ? "ΠΑΡΟΛΙ"
+          : activeTab === "match_of_day"
+            ? "ΑΓΩΝΑΣ ΤΗΣ ΗΜΕΡΑΣ"
+            : todayOnly
+              ? "ΣΗΜΕΡΙΝΕΣ ΠΡΟΒΛΕΨΕΙΣ"
+              : "ΟΛΕΣ ΟΙ ΠΡΟΒΛΕΨΕΙΣ";
 
   const sectionSubtitle = isHistoryTab
     ? "Αρχειοθετημένες προβλέψεις με αποτελέσματα"
     : isLiveTab
       ? "Αποτελέσματα & σκορ αγώνων σήμερα"
-      : activeTab === "parlay"
-        ? "Συνδυαστικές προβλέψεις"
-        : activeTab === "match_of_day"
-          ? "Η κορυφαία επιλογή της ημέρας"
-          : todayOnly
-            ? "Προβλέψεις για σήμερα"
-            : "Expertly curated football tips";
+      : isTipstersTab
+        ? "Επίλεξε tipster για να δεις τις προβλέψεις του"
+        : activeTab === "parlay"
+          ? "Συνδυαστικές προβλέψεις"
+          : activeTab === "match_of_day"
+            ? "Η κορυφαία επιλογή της ημέρας"
+            : todayOnly
+              ? "Προβλέψεις για σήμερα"
+              : "Expertly curated football tips";
 
   const accentGradient = isHistoryTab
     ? "linear-gradient(180deg, oklch(0.72 0.14 230), oklch(0.55 0.12 230))"
     : isLiveTab
       ? "linear-gradient(180deg, oklch(0.72 0.22 25), oklch(0.55 0.18 25))"
-      : activeTab === "parlay"
-        ? "linear-gradient(180deg, oklch(0.88 0.18 85), oklch(0.75 0.16 85))"
-        : activeTab === "match_of_day"
-          ? "linear-gradient(180deg, oklch(0.82 0.18 45), oklch(0.70 0.16 25))"
-          : "linear-gradient(180deg, oklch(0.82 0.22 142), oklch(0.70 0.20 160))";
+      : isTipstersTab
+        ? "linear-gradient(180deg, oklch(0.82 0.18 300), oklch(0.65 0.16 300))"
+        : activeTab === "parlay"
+          ? "linear-gradient(180deg, oklch(0.88 0.18 85), oklch(0.75 0.16 85))"
+          : activeTab === "match_of_day"
+            ? "linear-gradient(180deg, oklch(0.82 0.18 45), oklch(0.70 0.16 25))"
+            : "linear-gradient(180deg, oklch(0.82 0.22 142), oklch(0.70 0.20 160))";
 
   return (
     <div
@@ -2858,14 +3068,15 @@ export default function App() {
         {/* Tab Switcher */}
         <TabSwitcher active={activeTab} onChange={setActiveTab} />
 
-        {/* Date filter toggle - hidden on history/live tab */}
-        {!isHistoryTab && !isLiveTab && (
+        {/* Date filter toggle - hidden on history/live/tipsters tab */}
+        {!isHistoryTab && !isLiveTab && !isTipstersTab && (
           <DateFilterToggle todayOnly={todayOnly} onChange={setTodayOnly} />
         )}
 
-        {/* Stats bar - hidden on history/live tab */}
+        {/* Stats bar - hidden on history/live/tipsters tab */}
         {!isHistoryTab &&
           !isLiveTab &&
+          !isTipstersTab &&
           !isLoading &&
           activePredictions.length > 0 && (
             <StatsBar predictions={activePredictions} />
@@ -2884,6 +3095,8 @@ export default function App() {
               <HistoryContent />
             ) : isLiveTab ? (
               <LiveScoresContent />
+            ) : isTipstersTab ? (
+              <TipstersContent />
             ) : emptyBecauseFilter ? (
               <motion.div
                 initial={{ opacity: 0 }}
